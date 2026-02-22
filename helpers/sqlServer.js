@@ -166,10 +166,12 @@ async function getTableConfig(dbName, tableName) {
   `);
 
   const pkColumns = await getPrimaryKeyColumns(dbName, tableName);
+  // Only one column may have primaryKey: true (MySQL allows single PK; backend errors on multiple).
+  const firstPkColumn = pkColumns.length > 0 ? pkColumns[0] : null;
   const table_config = cols.recordset.map((row) => ({
     name: row.COLUMN_NAME,
     type: mapSqlTypeToApi(row),
-    primaryKey: pkColumns.includes(row.COLUMN_NAME),
+    primaryKey: row.COLUMN_NAME === firstPkColumn,
     autoIncrement: row.IS_IDENTITY === 1,
     nullable: row.IS_NULLABLE === "YES",
   }));
