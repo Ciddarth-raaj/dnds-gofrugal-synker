@@ -76,95 +76,118 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog filter-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
-          <h3 className="dialog-title">Filters — {tableName}</h3>
+          <h3 className="dialog-title">Table filters — {tableName}</h3>
           <button type="button" className="dialog-close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>
-        <p className="dialog-desc">Sync will only include rows matching these conditions. Useful for date ranges.</p>
+        <div className="dialog-body">
+          <p className="dialog-desc">Only rows matching these conditions will be synced. Add filters below (e.g. date range).</p>
 
-        {loading ? (
-          <p className="dialog-loading">Loading columns…</p>
-        ) : (
-          <>
-            <div className="filter-list">
-              {filters.length === 0 && (
-                <p className="filter-empty">No filters. Add one below.</p>
-              )}
-              {filters.map((f, i) => (
-                <div key={i} className="filter-item">
-                  <span className="filter-item-col">{f.column}</span>
-                  <span className="filter-item-op">{OPERATORS.find((o) => o.value === f.operator)?.label || f.operator}</span>
-                  <span className="filter-item-val">
-                    {Array.isArray(f.value) ? `${f.value[0]} … ${f.value[1]}` : String(f.value)}
-                  </span>
-                  <button type="button" className="filter-remove" onClick={() => removeFilter(i)} aria-label="Remove">
-                    Remove
-                  </button>
+          {loading ? (
+            <p className="dialog-loading">Loading columns…</p>
+          ) : (
+            <>
+              <section className="filter-section">
+                <h4 className="filter-section-title">Active filters</h4>
+                <div className="filter-list">
+                  {filters.length === 0 ? (
+                    <p className="filter-empty">No filters yet. Add one in the form below.</p>
+                  ) : (
+                    filters.map((f, i) => (
+                      <div key={i} className="filter-item">
+                        <span className="filter-item-col">{f.column}</span>
+                        <span className="filter-item-op">{OPERATORS.find((o) => o.value === f.operator)?.label || f.operator}</span>
+                        <span className="filter-item-val">
+                          {Array.isArray(f.value) ? `${f.value[0]} … ${f.value[1]}` : String(f.value)}
+                        </span>
+                        <button type="button" className="filter-remove" onClick={() => removeFilter(i)} aria-label="Remove filter">
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
-              ))}
-            </div>
+              </section>
 
-            <div className="filter-add">
-              <label className="filter-add-label">Add filter</label>
-              <div className="filter-add-row">
-                <select
-                  className="filter-select filter-col"
-                  value={newColumn}
-                  onChange={(e) => setNewColumn(e.target.value)}
-                  aria-label="Column"
-                >
-                  <option value="">Select column</option>
-                  {columnOptions}
-                </select>
-                <select
-                  className="filter-select filter-op"
-                  value={newOperator}
-                  onChange={(e) => setNewOperator(e.target.value)}
-                  aria-label="Operator"
-                >
-                  {OPERATORS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                {newOperator === "range" ? (
-                  <>
-                    <input
-                      type={isDateInput ? "date" : "text"}
-                      className="filter-input filter-val"
-                      placeholder="From"
-                      value={newValue}
-                      onChange={(e) => setNewValue(e.target.value)}
-                      aria-label="From"
-                    />
-                    <input
-                      type={isDateInput ? "date" : "text"}
-                      className="filter-input filter-val"
-                      placeholder="To"
-                      value={newValueEnd}
-                      onChange={(e) => setNewValueEnd(e.target.value)}
-                      aria-label="To"
-                    />
-                  </>
-                ) : (
-                  <input
-                    type={isDateInput ? "date" : "text"}
-                    className="filter-input filter-val"
-                    placeholder="Value"
-                    value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
-                    aria-label="Value"
-                  />
-                )}
-                <button type="button" className="btn btn-primary filter-add-btn" onClick={addFilter}>
-                  Add
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+              <section className="filter-section filter-add-section">
+                <h4 className="filter-section-title">Add a filter</h4>
+                <div className="filter-add-grid">
+                  <label className="filter-field">
+                    <span className="filter-field-label">Column</span>
+                    <select
+                      className="filter-select"
+                      value={newColumn}
+                      onChange={(e) => setNewColumn(e.target.value)}
+                      aria-label="Column"
+                    >
+                      <option value="">Select column</option>
+                      {columnOptions}
+                    </select>
+                  </label>
+                  <label className="filter-field">
+                    <span className="filter-field-label">Condition</span>
+                    <select
+                      className="filter-select"
+                      value={newOperator}
+                      onChange={(e) => setNewOperator(e.target.value)}
+                      aria-label="Operator"
+                    >
+                      {OPERATORS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {newOperator === "range" ? (
+                    <>
+                      <label className="filter-field">
+                        <span className="filter-field-label">From</span>
+                        <input
+                          type={isDateInput ? "date" : "text"}
+                          className="filter-input"
+                          placeholder="From"
+                          value={newValue}
+                          onChange={(e) => setNewValue(e.target.value)}
+                          aria-label="From"
+                        />
+                      </label>
+                      <label className="filter-field">
+                        <span className="filter-field-label">To</span>
+                        <input
+                          type={isDateInput ? "date" : "text"}
+                          className="filter-input"
+                          placeholder="To"
+                          value={newValueEnd}
+                          onChange={(e) => setNewValueEnd(e.target.value)}
+                          aria-label="To"
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <label className="filter-field filter-field-value">
+                      <span className="filter-field-label">Value</span>
+                      <input
+                        type={isDateInput ? "date" : "text"}
+                        className="filter-input"
+                        placeholder="Value"
+                        value={newValue}
+                        onChange={(e) => setNewValue(e.target.value)}
+                        aria-label="Value"
+                      />
+                    </label>
+                  )}
+                  <div className="filter-add-btn-wrap">
+                    <button type="button" className="btn btn-primary" onClick={addFilter}>
+                      Add filter
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+        </div>
 
         <div className="dialog-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

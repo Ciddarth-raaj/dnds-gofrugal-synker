@@ -1,14 +1,29 @@
+import { useEffect } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Logs from "./pages/Logs.jsx";
+import { applyTheme, getLogoUrl } from "./theme";
 import "./App.css";
 
 export default function App() {
+  useEffect(() => {
+    applyTheme();
+  }, []);
+
+  const logoUrl = getLogoUrl();
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1 className="app-title">Gofrugal DB Synker</h1>
-        <p className="tagline">Sync SQL Server tables to the backend</p>
+        <div className="app-header-brand">
+          {logoUrl && (
+            <img src={logoUrl} alt="" className="app-logo" />
+          )}
+          <div>
+            <h1 className="app-title">Gofrugal DB Synker</h1>
+            <p className="tagline">Sync SQL Server tables to the backend</p>
+          </div>
+        </div>
         <nav className="nav">
           <NavLink to="/" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")} end>
             Home

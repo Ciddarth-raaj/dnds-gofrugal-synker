@@ -7,6 +7,9 @@ export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [nextRuns, setNextRuns] = useState([]);
   const [schedule, setSchedule] = useState(null);
+  const [filterDb, setFilterDb] = useState("");
+  const [filterTable, setFilterTable] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   useEffect(() => {
     async function fetchLogs() {
@@ -32,6 +35,13 @@ export default function Logs() {
       scheduleEnglish = schedule.cronExpression;
     }
   }
+
+  const filteredLogs = logs.filter((log) => {
+    if (filterDb && (log.dbName || "").toLowerCase().indexOf(filterDb.trim().toLowerCase()) === -1) return false;
+    if (filterTable && (log.tableName || "").toLowerCase().indexOf(filterTable.trim().toLowerCase()) === -1) return false;
+    if (filterStatus && (log.status || "") !== filterStatus) return false;
+    return true;
+  });
 
   return (
     <div className="page-logs">
@@ -67,6 +77,40 @@ export default function Logs() {
 
       <div className="logs-table-section">
         <h3 className="logs-table-title">Recent syncs</h3>
+        <div className="logs-filters">
+          <label className="logs-filter-group">
+            <span className="logs-filter-label">Database</span>
+            <input
+              type="text"
+              className="logs-filter-input"
+              placeholder="Filter by database"
+              value={filterDb}
+              onChange={(e) => setFilterDb(e.target.value)}
+            />
+          </label>
+          <label className="logs-filter-group">
+            <span className="logs-filter-label">Table</span>
+            <input
+              type="text"
+              className="logs-filter-input"
+              placeholder="Filter by table"
+              value={filterTable}
+              onChange={(e) => setFilterTable(e.target.value)}
+            />
+          </label>
+          <label className="logs-filter-group">
+            <span className="logs-filter-label">Status</span>
+            <select
+              className="logs-filter-select"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+            </select>
+          </label>
+        </div>
         <div className="logs-table-wrap">
           <table className="logs-table">
             <thead>
@@ -79,14 +123,14 @@ export default function Logs() {
               </tr>
             </thead>
             <tbody>
-              {logs.length === 0 && (
+              {filteredLogs.length === 0 && (
                 <tr>
                   <td colSpan={5} className="logs-empty">
-                    No logs yet. Run Sync or save a CRON schedule.
+                    {logs.length === 0 ? "No logs yet. Run Sync or save a CRON schedule." : "No logs match the filters."}
                   </td>
                 </tr>
               )}
-              {logs.map((log) => (
+              {filteredLogs.map((log) => (
                 <tr key={log.id} className={"logs-row logs-row--" + log.status}>
                   <td className="logs-cell logs-time">{formatDateTime(log.timestamp)}</td>
                   <td className="logs-cell">{log.dbName}</td>
