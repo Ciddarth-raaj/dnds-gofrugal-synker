@@ -1,0 +1,264 @@
+import { useState, useEffect } from "react";
+import cronstrue from "cronstrue";
+import { apiFetch } from "../lib/api";
+import { formatDateTime } from "../lib/date";
+import { getSchedule, saveSchedule } from "../lib/logs";
+
+function tableKey(dbName, tableName) {
+  return `${dbName}\0${tableName}`;
+}
+
+export default function Home() {
+  const [databases, setDatabases] = useState([]);
+  const [tablesByDb, setTablesByDb] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(new Set());
+  const [cronExpression, setCronExpression] = useState("");
+  const [cronPreview, setCronPreview] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState({ type: null, text: null });
+
+  const [nextRuns, setNextRuns] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const dbResult = await apiFetch("/api/databases");
+        const { res: dbRes, data: dbData } = dbResult;
+        if (cancelled) return;
+        if (dbRes.ok && dbData.databases) {
+          setDatabases(dbData.databases);
+          const byDb = {};
+          for (const db of dbData.databases) {
+            const { data: td } = await apiFetch(`/api/databases/${encodeURIComponent(db)}/tables`);
+            if (!cancelled) byDb[db] = td.tables || [];
+          }
+          if (!cancelled) setTablesByDb(byDb);
+        }
+        const scheduleRes = await apiFetch("/api/schedule");
+        if (cancelled) return;
+        if (scheduleRes.res.ok && scheduleRes.data.nextRuns) {
+          setNextRuns(scheduleRes.data.nextRuns);
+        }
+        const fromApi = scheduleRes.res.ok ? scheduleRes.data.schedule : null;
+        const saved = fromApi || getSchedule();
+        if (saved?.cronExpression) setCronExpression(saved.cronExpression);
+        else setCronExpression("");
+        if (saved?.selectedTables?.length) {
+          setSelected(new Set(saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))));
+        } else {
+          setSelected(new Set());
+        }
+        if (fromApi) saveSchedule(fromApi);
+      } catch (e) {
+        if (!cancelled) setMessage({ type: "error", text: e.message || "Failed to load" });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!cronExpression.trim()) {
+      setCronPreview("");
+      return;
+    }
+    try {
+      setCronPreview(cronstrue.toString(cronExpression.trim()));
+    } catch {
+      setCronPreview("Invalid expression");
+    }
+  }, [cronExpression]);
+
+  async function runSyncForTables(tables) {
+    for (const { dbName, tableName } of tables) {
+      try {
+        const { res, data } = await apiFetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dbName, tableName }),
+        });
+        if (!res.ok) {
+          setMessage({ type: "error", text: data.error || "Sync failed" });
+        }
+      } catch (e) {
+        setMessage({ type: "error", text: e.message });
+      }
+    }
+  }
+
+  function toggleTable(dbName, tableName) {
+    const key = tableKey(dbName, tableName);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setMessage({ type: null, text: null });
+    const tables = [];
+    selected.forEach((key) => {
+      const [dbName, tableName] = key.split("\0");
+      tables.push({ dbName, tableName });
+    });
+    if (!cronExpression.trim()) {
+      setMessage({ type: "error", text: "Enter a CRON expression" });
+      return;
+    }
+    if (tables.length === 0) {
+      setMessage({ type: "error", text: "Select at least one table" });
+      return;
+    }
+    try {
+      const { res, data } = await apiFetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cronExpression: cronExpression.trim(), selectedTables: tables }),
+      });
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error || "Save failed" });
+        return;
+      }
+      saveSchedule({ cronExpression: cronExpression.trim(), selectedTables: tables });
+      setNextRuns(data.nextRuns || []);
+      setMessage({ type: "success", text: "Schedule saved. Backend will run sync at CRON times (even when this page is closed)." });
+    } catch (e) {
+      setMessage({ type: "error", text: e.message || "Save failed" });
+    }
+  }
+
+  function handleReset() {
+    setMessage({ type: null, text: null });
+    const saved = getSchedule();
+    if (saved?.cronExpression) setCronExpression(saved.cronExpression);
+    else setCronExpression("");
+    if (saved?.selectedTables?.length) {
+      setSelected(new Set(saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))));
+    } else {
+      setSelected(new Set());
+    }
+    setMessage({ type: "success", text: "Reset to last saved state." });
+  }
+
+  async function handleSync() {
+    const tables = [];
+    selected.forEach((key) => {
+      const [dbName, tableName] = key.split("\0");
+      tables.push({ dbName, tableName });
+    });
+    if (tables.length === 0) {
+      setMessage({ type: "error", text: "Select at least one table" });
+      return;
+    }
+    setSyncing(true);
+    setMessage({ type: null, text: null });
+    await runSyncForTables(tables);
+    setMessage({ type: "success", text: `Sync completed for ${tables.length} table(s). See Logs.` });
+    setSyncing(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="page-home">
+        <p className="loading">Loading databases and tables…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-home">
+      <div className="toolbar">
+        <div className="toolbar-row">
+          <label className="cron-label">CRON expression</label>
+          <input
+            type="text"
+            className="cron-input"
+            placeholder="e.g. */5 * * * *"
+            value={cronExpression}
+            onChange={(e) => setCronExpression(e.target.value)}
+            disabled={syncing}
+          />
+          {(cronPreview || nextRuns.length > 0) && (
+            <div className="cron-english-card">
+              {cronPreview && (
+                <div className="cron-english-row">
+                  <span className="cron-english-label">Schedule in plain English</span>
+                  <span className={"cron-english-text " + (cronPreview === "Invalid expression" ? "cron-english-text--error" : "")}>
+                    {cronPreview}
+                  </span>
+                </div>
+              )}
+              {nextRuns.length > 0 && (
+                <div className="cron-next-runs">
+                  <span className="cron-next-label">Next runs</span>
+                  <ul className="cron-next-list">
+                    {nextRuns.map((iso, i) => (
+                      <li key={i} className="cron-next-item">{formatDateTime(iso)}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="toolbar-buttons">
+          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={syncing}>
+            Save
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={handleReset} disabled={syncing}>
+            Reset
+          </button>
+          <button type="button" className="btn btn-sync" onClick={handleSync} disabled={syncing}>
+            {syncing ? "Syncing…" : "Sync"}
+          </button>
+        </div>
+      </div>
+
+      {message.text && (
+        <p className={"message message-" + (message.type === "error" ? "error" : "success")}>
+          {message.text}
+        </p>
+      )}
+
+      <div className="tree-section">
+        <h2 className="tree-title">Databases & tables</h2>
+        <p className="tree-hint">Select tables to sync. Save stores the schedule on the backend so sync runs at CRON times even when this page is closed. Sync runs immediately for selected tables.</p>
+        <ul className="tree-list">
+          {databases.map((dbName) => (
+            <li key={dbName} className="tree-db">
+              <span className="tree-db-name">{dbName}</span>
+              <ul className="tree-tables">
+                {(tablesByDb[dbName] || []).map((tableName) => {
+                  const key = tableKey(dbName, tableName);
+                  const checked = selected.has(key);
+                  return (
+                    <li key={key} className="tree-table">
+                      <label className="tree-table-label">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleTable(dbName, tableName)}
+                          disabled={syncing}
+                        />
+                        <span>{tableName}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        {databases.length === 0 && (
+          <p className="tree-empty">No databases found. Check connection or use IS_DEV with dev-tables.json.</p>
+        )}
+      </div>
+    </div>
+  );
+}

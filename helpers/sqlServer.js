@@ -2,8 +2,17 @@
 
 const sql = require("mssql");
 const { getEnvConfig } = require("../config/env");
+const devData = require("./devData");
 
 let pool = null;
+
+function isDev() {
+  try {
+    return getEnvConfig().isDev === true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Get or create SQL Server connection pool. Uses env config; optional override for database.
@@ -29,11 +38,42 @@ async function getPool(database) {
 }
 
 /**
+ * List all database names on the server.
+ * @returns {Promise<string[]>}
+ */
+async function listDatabases() {
+  if (isDev()) return devData.listDatabases();
+  const p = await getPool("master");
+  const r = await p.request().query(`
+    SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name
+  `);
+  return r.recordset.map((row) => row.name);
+}
+
+/**
+ * List all table names in a database.
+ * @param {string} dbName
+ * @returns {Promise<string[]>}
+ */
+async function listTables(dbName) {
+  if (isDev()) return devData.listTables(dbName);
+  const p = await getPool(dbName);
+  const r = await p.request().query(`
+    SELECT TABLE_NAME AS name
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_TYPE = 'BASE TABLE'
+    ORDER BY TABLE_NAME
+  `);
+  return r.recordset.map((row) => row.name);
+}
+
+/**
  * Check if a database exists on the server.
  * @param {string} dbName
  * @returns {Promise<boolean>}
  */
 async function databaseExists(dbName) {
+  if (isDev()) return devData.databaseExists(dbName);
   const p = await getPool("master");
   const r = await p.request().input("name", sql.NVarChar, dbName).query(`
     SELECT 1 AS ok FROM sys.databases WHERE name = @name
@@ -48,6 +88,7 @@ async function databaseExists(dbName) {
  * @returns {Promise<boolean>}
  */
 async function tableExists(dbName, tableName) {
+  if (isDev()) return devData.tableExists(dbName, tableName);
   const p = await getPool(dbName);
   const r = await p
     .request()
@@ -173,6 +214,7 @@ async function getPrimaryKeyColumns(dbName, tableName) {
  * @returns {Promise<{ table_config: Array, unique_keys: string[] }>}
  */
 async function getTableConfig(dbName, tableName) {
+  if (isDev()) return devData.getTableConfig(dbName, tableName);
   const p = await getPool(dbName);
   const cols = await p
     .request()
@@ -241,6 +283,7 @@ async function getTableConfig(dbName, tableName) {
  * @returns {Promise<Object[]>}
  */
 async function getTableData(dbName, tableName) {
+  if (isDev()) return devData.getTableData(dbName, tableName);
   const p = await getPool(dbName);
   const escaped = `[${tableName.replace(/\]/g, "]]")}]`;
   const r = await p.request().query(`SELECT * FROM ${escaped}`);
@@ -262,6 +305,7 @@ async function getTableData(dbName, tableName) {
  * Close the shared pool if open (e.g. before exit).
  */
 async function closePool() {
+  if (isDev()) return devData.closePool();
   if (pool) {
     await pool.close();
     pool = null;
@@ -270,6 +314,8 @@ async function closePool() {
 
 module.exports = {
   getPool,
+  listDatabases,
+  listTables,
   databaseExists,
   tableExists,
   getTableConfig,

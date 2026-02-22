@@ -2,19 +2,13 @@
 
 require("dotenv").config();
 
-const required = [
-  "MSSQL_USER",
-  "MSSQL_PASSWORD",
-  "MSSQL_SERVER",
-  "MSSQL_INSTANCE",
-  "GOFRUGAL_SYNKER_BASE_URL",
-];
-
 const optional = {
   MSSQL_DATABASE: "master",
   MSSQL_ENCRYPT: "false",
   MSSQL_TRUST_SERVER_CERTIFICATE: "true",
   SYNC_BATCH_SIZE: "5000",
+  IS_DEV: "false",
+  DEV_TABLES_JSON: "config/dev-tables.json",
 };
 
 function getEnv(name) {
@@ -24,6 +18,17 @@ function getEnv(name) {
 }
 
 function loadEnv() {
+  const isDev = getEnv("IS_DEV") === "true";
+  const required = isDev
+    ? ["GOFRUGAL_SYNKER_BASE_URL"]
+    : [
+        "MSSQL_USER",
+        "MSSQL_PASSWORD",
+        "MSSQL_SERVER",
+        "MSSQL_INSTANCE",
+        "GOFRUGAL_SYNKER_BASE_URL",
+      ];
+
   const missing = required.filter((key) => !getEnv(key));
   if (missing.length > 0) {
     throw new Error(
@@ -32,7 +37,8 @@ function loadEnv() {
   }
 
   const env = {
-    // SQL Server (GoFrugal source)
+    isDev,
+    // SQL Server (GoFrugal source; unused when isDev)
     mssql: {
       user: getEnv("MSSQL_USER"),
       password: getEnv("MSSQL_PASSWORD"),
@@ -46,10 +52,11 @@ function loadEnv() {
     },
     // Gofrugal Synker API (dailyneeds backend)
     synker: {
-      baseUrl: getEnv("GOFRUGAL_SYNKER_BASE_URL").replace(/\/$/, ""),
+      baseUrl: (getEnv("GOFRUGAL_SYNKER_BASE_URL") || "").replace(/\/$/, ""),
       syncPath: "/gofrugal-synker/sync",
     },
     syncBatchSize: parseInt(getEnv("SYNC_BATCH_SIZE") || optional.SYNC_BATCH_SIZE, 10) || 5000,
+    devTablesPath: getEnv("DEV_TABLES_JSON") || optional.DEV_TABLES_JSON,
   };
 
   return env;

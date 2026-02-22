@@ -5,12 +5,21 @@
   "main": "test.js",
   "scripts": {
     "sync": "node scripts/sync-table.js",
+    "backend": "node server.js",
+    "ui": "npm run dev --prefix frontend",
+    "dev": "concurrently -n backend,ui -c blue,magenta \"npm run backend\" \"npm run ui\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cron-parser": "^4.9.0",
     "dotenv": "^16.4.5",
-    "mssql": "^12.2.0"
+    "express": "^4.21.1",
+    "mssql": "^12.2.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }

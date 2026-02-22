@@ -1,0 +1,28 @@
+{
+  "databases": {
+    "DevDB": {
+      "tables": {
+        "items": {
+          "table_config": [
+            {
+              "name": "id",
+              "type": "INT",
+              "primaryKey": true,
+              "autoIncrement": true,
+              "nullable": false
+            },
+            { "name": "code", "type": "VARCHAR(100)", "nullable": false },
+            { "name": "name", "type": "VARCHAR(255)" }
+          ],
+          "unique_keys": ["code"],
+          "table_items": [
+            { "id": 1, "code": "ITM001", "name": "Product A" },
+            { "id": 2, "code": "ITM002", "name": "Product B" },
+            { "id": 3, "code": "ITM003", "name": "Product C" },
+            { "id": 4, "code": "ITM004", "name": "Product D" }
+          ]
+        }
+      }
+    }
+  }
+}
