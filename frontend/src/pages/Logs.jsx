@@ -75,7 +75,7 @@ export default function Logs() {
                 <th>Database</th>
                 <th>Table</th>
                 <th>Status</th>
-                <th>Rows synced</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -94,8 +94,8 @@ export default function Logs() {
                   <td className="logs-cell">
                     <span className={"logs-badge logs-badge--" + log.status}>{log.status}</span>
                   </td>
-                  <td className="logs-cell logs-rows">
-                    {log.synced != null ? log.synced : "—"}
+                  <td className="logs-cell logs-details">
+                    {log.status === "error" && log.message ? log.message : (log.synced != null ? log.synced : "—")}
                   </td>
                 </tr>
               ))}

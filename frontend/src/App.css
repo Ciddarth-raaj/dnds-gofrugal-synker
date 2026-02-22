@@ -491,7 +491,12 @@
   color: #b91c1c;
 }
 
-.logs-rows {
+.logs-details {
+  max-width: 320px;
+  overflow-wrap: break-word;
+}
+
+.logs-row--success .logs-details {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

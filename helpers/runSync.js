@@ -48,11 +48,19 @@ async function runSync(dbName, tableName) {
     const tableConfig = await getTableConfig(trimmedDb, trimmedTable);
     const tableItems = await getTableData(trimmedDb, trimmedTable);
 
+    // MySQL: only one auto column and it must be the primary key. So allow autoIncrement only on the first unique_key.
+    const firstUniqueKey = tableConfig.unique_keys && tableConfig.unique_keys[0];
+    const table_config = (tableConfig.table_config || []).map((col) => ({
+      ...col,
+      autoIncrement: firstUniqueKey && col.name === firstUniqueKey ? Boolean(col.autoIncrement) : false,
+    }));
+
     // In dev, send one row per request so backend applies each (avoids only-first-row synced).
     const batchSize = config.isDev ? 10 : (config.syncBatchSize || 5000);
+    const tableNameForApi = `${trimmedDb}_${trimmedTable}`;
     const payload = {
-      table_name: trimmedTable,
-      table_config: tableConfig.table_config,
+      table_name: tableNameForApi,
+      table_config,
       unique_keys: tableConfig.unique_keys,
       table_items: [],
     };
