@@ -82,30 +82,32 @@ app.post("/api/filters", (req, res) => {
   }
 });
 
-// Get current schedule (for UI prefill) and next 2 run times
+// Get current schedule (for UI prefill), next 2 run times, and paused state
 app.get("/api/schedule", (req, res) => {
   try {
     const schedule = scheduler.loadSchedule();
     const nextRuns = scheduler.getNextRunsForCurrent(2);
-    res.json({ schedule, nextRuns });
+    const paused = scheduler.isPaused();
+    res.json({ schedule, nextRuns, paused });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Save schedule: backend runs CRON and calls sync API at schedule times. Body: { cronExpression, selectedTables }
+// Save schedule: backend runs one CRON only; previous CRON is stopped before starting the new one. Body: { cronExpression, selectedTables }
 app.post("/api/schedule", (req, res) => {
   try {
     const { cronExpression, selectedTables } = req.body || {};
     if (!cronExpression?.trim() || !selectedTables?.length) {
       const result = scheduler.clearSchedule();
-      return res.json({ success: true, schedule: null, nextRuns: result.nextRuns });
+      return res.json({ success: true, schedule: null, nextRuns: result.nextRuns, paused: false });
     }
     const result = scheduler.setSchedule(cronExpression.trim(), selectedTables);
     res.json({
       success: true,
-      schedule: { cronExpression: cronExpression.trim(), selectedTables },
+      schedule: { cronExpression: cronExpression.trim(), selectedTables, paused: false },
       nextRuns: result.nextRuns,
+      paused: false,
     });
   } catch (e) {
     res.status(400).json({ success: false, error: e.message });
@@ -116,19 +118,35 @@ app.post("/api/schedule", (req, res) => {
 app.delete("/api/schedule", (req, res) => {
   try {
     const result = scheduler.clearSchedule();
-    res.json({ success: true, nextRuns: result.nextRuns });
+    res.json({ success: true, nextRuns: result.nextRuns, paused: false });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Logs (sync runs from Sync button or from CRON). Schedule included so UI can show "in English".
+// Pause or resume scheduled sync. Body: { paused: true } to stop, { paused: false } to resume.
+app.post("/api/schedule/pause", (req, res) => {
+  try {
+    const { paused } = req.body || {};
+    const schedule = scheduler.loadSchedule();
+    if (!schedule?.cronExpression) {
+      return res.status(400).json({ error: "No schedule set. Save a schedule first." });
+    }
+    const newPaused = scheduler.setPaused(Boolean(paused));
+    res.json({ success: true, paused: newPaused });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Logs (sync runs from Sync button or from CRON). Schedule and paused state included.
 app.get("/api/logs", (req, res) => {
   try {
     const logs = scheduler.loadLogs();
     const nextRuns = scheduler.getNextRunsForCurrent(3);
     const schedule = scheduler.loadSchedule();
-    res.json({ logs, nextRuns, schedule });
+    const paused = scheduler.isPaused();
+    res.json({ logs, nextRuns, schedule, paused });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

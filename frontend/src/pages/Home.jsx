@@ -28,6 +28,7 @@ export default function Home() {
   const [allFilters, setAllFilters] = useState({});
   const [filterDialog, setFilterDialog] = useState(null);
   const [syncingTableKey, setSyncingTableKey] = useState(null);
+  const [schedulePaused, setSchedulePaused] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,25 +40,33 @@ export default function Home() {
         if (dbRes.ok && dbData.databases) {
           const dbs = dbData.databases;
           setDatabases(dbs);
-          if (dbs.length > 0) setExpandedDbs((prev) => (prev.size ? prev : new Set([dbs[0]])));
+          if (dbs.length > 0)
+            setExpandedDbs((prev) => (prev.size ? prev : new Set([dbs[0]])));
           const byDb = {};
           for (const db of dbs) {
-            const { data: td } = await apiFetch(`/api/databases/${encodeURIComponent(db)}/tables`);
+            const { data: td } = await apiFetch(
+              `/api/databases/${encodeURIComponent(db)}/tables`
+            );
             if (!cancelled) byDb[db] = td.tables || [];
           }
           if (!cancelled) setTablesByDb(byDb);
         }
         const scheduleRes = await apiFetch("/api/schedule");
         if (cancelled) return;
-        if (scheduleRes.res.ok && scheduleRes.data.nextRuns) {
-          setNextRuns(scheduleRes.data.nextRuns);
+        if (scheduleRes.res.ok) {
+          if (scheduleRes.data.nextRuns) setNextRuns(scheduleRes.data.nextRuns);
+          setSchedulePaused(Boolean(scheduleRes.data.paused));
         }
         const fromApi = scheduleRes.res.ok ? scheduleRes.data.schedule : null;
         const saved = fromApi || getSchedule();
         if (saved?.cronExpression) setCronExpression(saved.cronExpression);
         else setCronExpression("");
         if (saved?.selectedTables?.length) {
-          setSelected(new Set(saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))));
+          setSelected(
+            new Set(
+              saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))
+            )
+          );
         } else {
           setSelected(new Set());
         }
@@ -67,13 +76,16 @@ export default function Home() {
           setAllFilters(filtersRes.data.filters);
         }
       } catch (e) {
-        if (!cancelled) setMessage({ type: "error", text: e.message || "Failed to load" });
+        if (!cancelled)
+          setMessage({ type: "error", text: e.message || "Failed to load" });
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -126,7 +138,10 @@ export default function Home() {
         setAllFilters((prev) => ({ ...prev, [key]: filters }));
       }
     } catch (e) {
-      setMessage({ type: "error", text: e.message || "Failed to save filters" });
+      setMessage({
+        type: "error",
+        text: e.message || "Failed to save filters",
+      });
     }
   }
 
@@ -141,7 +156,10 @@ export default function Home() {
         body: JSON.stringify({ dbName, tableName }),
       });
       if (res.ok) {
-        setMessage({ type: "success", text: data.message || `Synced ${tableName}. See Logs.` });
+        setMessage({
+          type: "success",
+          text: data.message || `Synced ${tableName}. See Logs.`,
+        });
       } else {
         setMessage({ type: "error", text: data.error || "Sync failed" });
       }
@@ -181,15 +199,25 @@ export default function Home() {
       const { res, data } = await apiFetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cronExpression: cronExpression.trim(), selectedTables: tables }),
+        body: JSON.stringify({
+          cronExpression: cronExpression.trim(),
+          selectedTables: tables,
+        }),
       });
       if (!res.ok) {
         setMessage({ type: "error", text: data.error || "Save failed" });
         return;
       }
-      saveSchedule({ cronExpression: cronExpression.trim(), selectedTables: tables });
+      saveSchedule({
+        cronExpression: cronExpression.trim(),
+        selectedTables: tables,
+      });
       setNextRuns(data.nextRuns || []);
-      setMessage({ type: "success", text: "Schedule saved. Backend will run sync at CRON times (even when this page is closed)." });
+      setSchedulePaused(Boolean(data.paused));
+      setMessage({
+        type: "success",
+        text: "Schedule saved. Backend will run sync at CRON times (even when this page is closed).",
+      });
     } catch (e) {
       setMessage({ type: "error", text: e.message || "Save failed" });
     }
@@ -201,7 +229,11 @@ export default function Home() {
     if (saved?.cronExpression) setCronExpression(saved.cronExpression);
     else setCronExpression("");
     if (saved?.selectedTables?.length) {
-      setSelected(new Set(saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))));
+      setSelected(
+        new Set(
+          saved.selectedTables.map((t) => tableKey(t.dbName, t.tableName))
+        )
+      );
     } else {
       setSelected(new Set());
     }
@@ -221,8 +253,38 @@ export default function Home() {
     setSyncing(true);
     setMessage({ type: null, text: null });
     await runSyncForTables(tables);
-    setMessage({ type: "success", text: `Sync completed for ${tables.length} table(s). See Logs.` });
+    setMessage({
+      type: "success",
+      text: `Sync completed for ${tables.length} table(s). See Logs.`,
+    });
     setSyncing(false);
+  }
+
+  async function handlePauseResume(paused) {
+    setMessage({ type: null, text: null });
+    try {
+      const { res, data } = await apiFetch("/api/schedule/pause", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paused }),
+      });
+      if (!res.ok) {
+        setMessage({
+          type: "error",
+          text: data.error || "Failed to update pause state",
+        });
+        return;
+      }
+      setSchedulePaused(Boolean(data.paused));
+      setMessage({
+        type: "success",
+        text: data.paused
+          ? "Scheduled sync stopped. Click Resume to run again at CRON times."
+          : "Scheduled sync resumed.",
+      });
+    } catch (e) {
+      setMessage({ type: "error", text: e.message || "Failed" });
+    }
   }
 
   if (loading) {
@@ -246,12 +308,21 @@ export default function Home() {
             onChange={(e) => setCronExpression(e.target.value)}
             disabled={syncing}
           />
-          {(cronPreview || nextRuns.length > 0) && (
+          {(cronPreview || nextRuns.length > 0) && !schedulePaused && (
             <div className="cron-english-card">
               {cronPreview && (
                 <div className="cron-english-row">
-                  <span className="cron-english-label">Schedule in plain English</span>
-                  <span className={"cron-english-text " + (cronPreview === "Invalid expression" ? "cron-english-text--error" : "")}>
+                  <span className="cron-english-label">
+                    Schedule in plain English
+                  </span>
+                  <span
+                    className={
+                      "cron-english-text " +
+                      (cronPreview === "Invalid expression"
+                        ? "cron-english-text--error"
+                        : "")
+                    }
+                  >
                     {cronPreview}
                   </span>
                 </div>
@@ -261,7 +332,9 @@ export default function Home() {
                   <span className="cron-next-label">Next runs</span>
                   <ul className="cron-next-list">
                     {nextRuns.map((iso, i) => (
-                      <li key={i} className="cron-next-item">{formatDateTime(iso)}</li>
+                      <li key={i} className="cron-next-item">
+                        {formatDateTime(iso)}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -269,28 +342,81 @@ export default function Home() {
             </div>
           )}
         </div>
+        {nextRuns.length > 0 && schedulePaused && (
+          <p className="schedule-paused-msg">
+            Scheduled sync is paused. Click Resume to run again at CRON times.
+          </p>
+        )}
         <div className="toolbar-buttons">
-          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={syncing}>
-            Save
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={handleReset} disabled={syncing}>
-            Reset
-          </button>
-          <button type="button" className="btn btn-sync" onClick={handleSync} disabled={syncing}>
-            {syncing ? "Syncing…" : "Sync"}
-          </button>
+          <div className="toolbar-buttons-left">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={syncing}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleReset}
+              disabled={syncing}
+            >
+              Reset
+            </button>
+          </div>
+          <div className="toolbar-buttons-right">
+            {nextRuns.length > 0 &&
+              (schedulePaused ? (
+                <button
+                  type="button"
+                  className="btn btn-resume"
+                  onClick={() => handlePauseResume(false)}
+                  disabled={syncing}
+                >
+                  Resume
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-stop"
+                  onClick={() => handlePauseResume(true)}
+                  disabled={syncing}
+                >
+                  Stop sync
+                </button>
+              ))}
+            <button
+              type="button"
+              className="btn btn-sync"
+              onClick={handleSync}
+              disabled={syncing}
+            >
+              {syncing ? "Syncing…" : "Sync"}
+            </button>
+          </div>
         </div>
       </div>
 
       {message.text && (
-        <p className={"message message-" + (message.type === "error" ? "error" : "success")}>
+        <p
+          className={
+            "message message-" +
+            (message.type === "error" ? "error" : "success")
+          }
+        >
           {message.text}
         </p>
       )}
 
       <div className="tree-section">
         <h2 className="tree-title">Databases & tables</h2>
-        <p className="tree-hint">Select tables to sync. Save stores the schedule on the backend so sync runs at CRON times even when this page is closed. Sync runs immediately for selected tables.</p>
+        <p className="tree-hint">
+          Select tables to sync. Save stores the schedule on the backend so sync
+          runs at CRON times even when this page is closed. Sync runs
+          immediately for selected tables.
+        </p>
         <ul className="tree-list">
           {databases.map((dbName) => {
             const expanded = expandedDbs.has(dbName);
@@ -303,9 +429,13 @@ export default function Home() {
                   onClick={() => toggleDb(dbName)}
                   aria-expanded={expanded}
                 >
-                  <span className="tree-db-chevron" aria-hidden>{expanded ? "▼" : "▶"}</span>
+                  <span className="tree-db-chevron" aria-hidden>
+                    {expanded ? "▼" : "▶"}
+                  </span>
                   <span className="tree-db-name">{dbName}</span>
-                  <span className="tree-db-count">{tables.length} table{tables.length !== 1 ? "s" : ""}</span>
+                  <span className="tree-db-count">
+                    {tables.length} table{tables.length !== 1 ? "s" : ""}
+                  </span>
                 </button>
                 {expanded && (
                   <ul className="tree-tables">
@@ -340,11 +470,19 @@ export default function Home() {
                             <button
                               type="button"
                               className="tree-table-filter-btn"
-                              onClick={() => setFilterDialog({ dbName, tableName })}
+                              onClick={() =>
+                                setFilterDialog({ dbName, tableName })
+                              }
                               disabled={syncing}
-                              title={hasFilters ? `${tableFilters.length} filter(s)` : "Add filters"}
+                              title={
+                                hasFilters
+                                  ? `${tableFilters.length} filter(s)`
+                                  : "Add filters"
+                              }
                             >
-                              {hasFilters ? `Filter (${tableFilters.length})` : "Filter"}
+                              {hasFilters
+                                ? `Filter (${tableFilters.length})`
+                                : "Filter"}
                             </button>
                           </div>
                         </li>
@@ -360,13 +498,26 @@ export default function Home() {
           <FilterDialog
             dbName={filterDialog.dbName}
             tableName={filterDialog.tableName}
-            initialFilters={allFilters[filterStorageKey(filterDialog.dbName, filterDialog.tableName)] || []}
+            initialFilters={
+              allFilters[
+                filterStorageKey(filterDialog.dbName, filterDialog.tableName)
+              ] || []
+            }
             onClose={() => setFilterDialog(null)}
-            onSave={(filters) => handleSaveFilters(filterDialog.dbName, filterDialog.tableName, filters)}
+            onSave={(filters) =>
+              handleSaveFilters(
+                filterDialog.dbName,
+                filterDialog.tableName,
+                filters
+              )
+            }
           />
         )}
         {databases.length === 0 && (
-          <p className="tree-empty">No databases found. Check connection or use IS_DEV with dev-tables.json.</p>
+          <p className="tree-empty">
+            No databases found. Check connection or use IS_DEV with
+            dev-tables.json.
+          </p>
         )}
       </div>
     </div>

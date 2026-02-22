@@ -19,6 +19,7 @@ const MAX_LOGS = 500;
 
 let currentJob = null;
 let currentExpression = null;
+let paused = false;
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -66,6 +67,7 @@ function appendLog(entry) {
 }
 
 async function runScheduledSync(tables) {
+  if (paused) return;
   for (const { dbName, tableName } of tables) {
     try {
       const result = await runSync(dbName, tableName);
@@ -96,13 +98,10 @@ function getNextRuns(expr, count = 2) {
 }
 
 function setSchedule(cronExpression, selectedTables) {
-  if (currentJob) {
-    currentJob.stop();
-    currentJob = null;
-    currentExpression = null;
-  }
+  stopCurrentJob();
   if (!cronExpression?.trim() || !selectedTables?.length) {
     saveSchedule(null);
+    paused = false;
     return { nextRuns: [] };
   }
   const expr = cronExpression.trim();
@@ -115,16 +114,35 @@ function setSchedule(cronExpression, selectedTables) {
     await runScheduledSync(tables);
   });
   currentExpression = expr;
-  saveSchedule({ cronExpression: expr, selectedTables: tables });
+  paused = false;
+  saveSchedule({ cronExpression: expr, selectedTables: tables, paused: false });
   return { nextRuns: getNextRuns(expr, 2) };
 }
 
-function clearSchedule() {
+function stopCurrentJob() {
   if (currentJob) {
     currentJob.stop();
     currentJob = null;
     currentExpression = null;
   }
+}
+
+function setPaused(value) {
+  paused = Boolean(value);
+  const schedule = loadSchedule();
+  if (schedule) {
+    saveSchedule({ ...schedule, paused });
+  }
+  return paused;
+}
+
+function isPaused() {
+  return paused;
+}
+
+function clearSchedule() {
+  stopCurrentJob();
+  paused = false;
   saveSchedule(null);
   return { nextRuns: [] };
 }
@@ -134,9 +152,11 @@ function getNextRunsForCurrent(count = 2) {
 }
 
 function init() {
+  stopCurrentJob();
   const schedule = loadSchedule();
   if (schedule?.cronExpression && schedule?.selectedTables?.length) {
     if (cron.validate(schedule.cronExpression)) {
+      paused = Boolean(schedule.paused);
       currentJob = cron.schedule(schedule.cronExpression, async () => {
         await runScheduledSync(schedule.selectedTables);
       });
@@ -154,6 +174,8 @@ module.exports = {
   loadSchedule,
   setSchedule,
   clearSchedule,
+  setPaused,
+  isPaused,
   loadLogs,
   getNextRunsForCurrent,
   appendLog,

@@ -7,6 +7,7 @@ export default function Logs() {
   const [logs, setLogs] = useState([]);
   const [nextRuns, setNextRuns] = useState([]);
   const [schedule, setSchedule] = useState(null);
+  const [paused, setPaused] = useState(false);
   const [filterDb, setFilterDb] = useState("");
   const [filterTable, setFilterTable] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -19,6 +20,7 @@ export default function Logs() {
           setLogs(data.logs || []);
           setNextRuns(data.nextRuns || []);
           setSchedule(data.schedule || null);
+          setPaused(Boolean(data.paused));
         }
       } catch (_) {}
     }
@@ -37,8 +39,20 @@ export default function Logs() {
   }
 
   const filteredLogs = logs.filter((log) => {
-    if (filterDb && (log.dbName || "").toLowerCase().indexOf(filterDb.trim().toLowerCase()) === -1) return false;
-    if (filterTable && (log.tableName || "").toLowerCase().indexOf(filterTable.trim().toLowerCase()) === -1) return false;
+    if (
+      filterDb &&
+      (log.dbName || "")
+        .toLowerCase()
+        .indexOf(filterDb.trim().toLowerCase()) === -1
+    )
+      return false;
+    if (
+      filterTable &&
+      (log.tableName || "")
+        .toLowerCase()
+        .indexOf(filterTable.trim().toLowerCase()) === -1
+    )
+      return false;
     if (filterStatus && (log.status || "") !== filterStatus) return false;
     return true;
   });
@@ -46,17 +60,29 @@ export default function Logs() {
   return (
     <div className="page-logs">
       <h2 className="logs-title">Sync logs</h2>
-      <p className="logs-desc">History of sync runs from the Sync button or from the backend schedule. Data is stored on the server and persists across sessions.</p>
+      <p className="logs-desc">
+        History of sync runs from the Sync button or from the backend schedule.
+        Data is stored on the server and persists across sessions.
+      </p>
 
-      {(schedule || nextRuns.length > 0) && (
+      {paused && (
+        <div className="logs-paused-badge">
+          <span className="logs-paused-label">Paused</span>
+          <span className="logs-paused-desc">
+            Scheduled sync is stopped. Resume from the Home page.
+          </span>
+        </div>
+      )}
+
+      {(schedule || nextRuns.length > 0) && !paused && (
         <div className="logs-schedule-card">
-          {scheduleEnglish && (
+          {!paused && scheduleEnglish && (
             <div className="logs-schedule-row">
               <span className="logs-schedule-label">Schedule</span>
               <span className="logs-schedule-english">{scheduleEnglish}</span>
             </div>
           )}
-          {nextRuns.length > 0 && (
+          {!paused && nextRuns.length > 0 && (
             <div className="logs-next-runs">
               <span className="logs-next-label">Next runs</span>
               <ul className="logs-next-list">
@@ -72,7 +98,10 @@ export default function Logs() {
       )}
 
       {!schedule && nextRuns.length === 0 && (
-        <p className="logs-no-schedule">No schedule set. Save a CRON and table selection on the Home page to run sync automatically.</p>
+        <p className="logs-no-schedule">
+          No schedule set. Save a CRON and table selection on the Home page to
+          run sync automatically.
+        </p>
       )}
 
       <div className="logs-table-section">
@@ -126,20 +155,30 @@ export default function Logs() {
               {filteredLogs.length === 0 && (
                 <tr>
                   <td colSpan={5} className="logs-empty">
-                    {logs.length === 0 ? "No logs yet. Run Sync or save a CRON schedule." : "No logs match the filters."}
+                    {logs.length === 0
+                      ? "No logs yet. Run Sync or save a CRON schedule."
+                      : "No logs match the filters."}
                   </td>
                 </tr>
               )}
               {filteredLogs.map((log) => (
                 <tr key={log.id} className={"logs-row logs-row--" + log.status}>
-                  <td className="logs-cell logs-time">{formatDateTime(log.timestamp)}</td>
+                  <td className="logs-cell logs-time">
+                    {formatDateTime(log.timestamp)}
+                  </td>
                   <td className="logs-cell">{log.dbName}</td>
                   <td className="logs-cell">{log.tableName}</td>
                   <td className="logs-cell">
-                    <span className={"logs-badge logs-badge--" + log.status}>{log.status}</span>
+                    <span className={"logs-badge logs-badge--" + log.status}>
+                      {log.status}
+                    </span>
                   </td>
                   <td className="logs-cell logs-details">
-                    {log.status === "error" && log.message ? log.message : (log.synced != null ? log.synced : "—")}
+                    {log.status === "error" && log.message
+                      ? log.message
+                      : log.synced != null
+                      ? log.synced
+                      : "—"}
                   </td>
                 </tr>
               ))}
