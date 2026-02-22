@@ -1,0 +1,16 @@
+{
+  "name": "gofrugaldbsynker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "test.js",
+  "scripts": {
+    "sync": "node scripts/sync-table.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mssql": "^12.2.0"
+  }
+}
