@@ -60,6 +60,25 @@ async function tableExists(dbName, tableName) {
   return r.recordset.length > 0;
 }
 
+/** MariaDB/MySQL max row size (bytes). Stay under 65535 to avoid ER_TOO_BIG_ROWSIZE. utf8mb4 = 4 bytes/char. */
+const MAX_ROW_SIZE = 65000;
+
+/**
+ * Estimated byte size of a column type in MariaDB (utf8mb4). Used to avoid ER_TOO_BIG_ROWSIZE.
+ */
+function typeByteSize(typeStr) {
+  if (!typeStr) return 0;
+  const t = typeStr.toUpperCase();
+  if (t === "TEXT" || t.startsWith("BLOB")) return 12; // stored off-row, pointer in row
+  const vMatch = t.match(/^VARCHAR\((\d+)\)$/);
+  if (vMatch) return Math.min(Number(vMatch[1], 10) * 4, 16383) || 12; // utf8mb4, max in-row ~16383*4
+  if (t === "INT" || t === "INTEGER") return 4;
+  if (t === "BIGINT") return 8;
+  if (t === "DATETIME" || t === "TIMESTAMP") return 8;
+  if (t.startsWith("DECIMAL")) return 8;
+  return 16; // conservative for others
+}
+
 /**
  * Map SQL Server column type to MariaDB/MySQL-compatible type string for sync API.
  * Output: INT, BIGINT, VARCHAR(n), TEXT, DECIMAL(p,s), DATETIME, etc.
@@ -179,6 +198,24 @@ async function getTableConfig(dbName, tableName) {
       nullable: row.IS_NULLABLE === "YES",
     };
   });
+
+  // Avoid ER_TOO_BIG_ROWSIZE: if row size exceeds limit, convert largest VARCHARs to TEXT.
+  let total = table_config.reduce((sum, c) => sum + typeByteSize(c.type), 0);
+  if (total > MAX_ROW_SIZE) {
+    const varcharCols = table_config
+      .filter((c) => /^VARCHAR\(\d+\)$/i.test(c.type))
+      .map((c) => ({ ...c, size: typeByteSize(c.type) }))
+      .sort((a, b) => b.size - a.size);
+    for (const col of varcharCols) {
+      if (total <= MAX_ROW_SIZE) break;
+      const entry = table_config.find((c) => c.name === col.name);
+      if (entry && entry.type !== "TEXT") {
+        total -= typeByteSize(entry.type);
+        entry.type = "TEXT";
+        total += typeByteSize("TEXT");
+      }
+    }
+  }
 
   const unique_keys = pkColumns.length > 0 ? pkColumns : [cols.recordset[0]?.COLUMN_NAME].filter(Boolean);
   if (unique_keys.length === 0) {
