@@ -5,8 +5,8 @@ const { getEnvConfig } = require("../config/env");
 /**
  * Payload shape per GOFRUGAL_SYNKER_API_PLAN.md:
  * - table_name: string
- * - table_config: array of { name, type?, primaryKey?, autoIncrement?, nullable? }
- * - unique_keys: string[]
+ * - table_config: array of { name, type?, primaryKey?, autoIncrement?, nullable? } (primaryKey ignored by backend)
+ * - unique_keys: string[] — column(s) forming PRIMARY KEY (composite supported, e.g. ["PR_NO", "SNO"])
  * - table_items: array of row objects (optional, default [])
  */
 

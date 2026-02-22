@@ -23,13 +23,17 @@ async function main() {
 
   console.log("Gofrugal DB Synker – sync a SQL Server table to the backend.\n");
 
-  const dbName = await ask("Enter database name: ");
+  // Optional: npm run sync [dbName] [tableName]
+  let dbName = process.argv[2] ? process.argv[2].trim() : "";
+  let tableName = process.argv[3] ? process.argv[3].trim() : "";
+
+  if (!dbName) dbName = await ask("Enter database name: ");
   if (!dbName) {
     console.error("❌ Database name is required.");
     process.exit(1);
   }
 
-  const tableName = await ask("Enter table name: ");
+  if (!tableName) tableName = await ask("Enter table name: ");
   if (!tableName) {
     console.error("❌ Table name is required.");
     process.exit(1);

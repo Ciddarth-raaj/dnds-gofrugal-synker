@@ -192,16 +192,17 @@ async function getTableConfig(dbName, tableName) {
   `);
 
   const pkColumns = await getPrimaryKeyColumns(dbName, tableName);
-  // MariaDB/MySQL: only one PRIMARY KEY; only one AUTO_INCREMENT and it must be that key.
+  // Backend creates PRIMARY KEY (unique_keys); primaryKey in table_config is ignored (doc only).
+  // Composite unique_keys supported, e.g. ["PR_NO", "SNO"]. AUTO_INCREMENT only on first key column if identity.
   const firstPkColumn = pkColumns.length > 0 ? pkColumns[0] : null;
   const table_config = cols.recordset.map((row) => {
-    const isPk = row.COLUMN_NAME === firstPkColumn;
+    const inUniqueKeys = pkColumns.includes(row.COLUMN_NAME);
     const isIdentity = row.IS_IDENTITY === 1;
     return {
       name: row.COLUMN_NAME,
       type: mapSqlTypeToApi(row),
-      primaryKey: isPk,
-      autoIncrement: isPk && isIdentity,
+      primaryKey: inUniqueKeys,
+      autoIncrement: row.COLUMN_NAME === firstPkColumn && isIdentity,
       nullable: row.IS_NULLABLE === "YES",
     };
   });
@@ -224,6 +225,7 @@ async function getTableConfig(dbName, tableName) {
     }
   }
 
+  // Backend creates PRIMARY KEY (unique_keys); composite keys e.g. ["PR_NO", "SNO"] supported.
   const unique_keys = pkColumns.length > 0 ? pkColumns : [cols.recordset[0]?.COLUMN_NAME].filter(Boolean);
   if (unique_keys.length === 0) {
     throw new Error("Table has no primary key and no columns; cannot determine unique_keys.");
