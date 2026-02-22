@@ -20,6 +20,7 @@
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "serve": "^14.2.4"
   }
 }
