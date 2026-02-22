@@ -2,6 +2,7 @@
 
 const { getEnvConfig } = require("../config/env");
 const { syncTable } = require("./syncApi");
+const filtersService = require("../services/filters");
 const {
   databaseExists,
   tableExists,
@@ -46,7 +47,8 @@ async function runSync(dbName, tableName) {
     }
 
     const tableConfig = await getTableConfig(trimmedDb, trimmedTable);
-    const tableItems = await getTableData(trimmedDb, trimmedTable);
+    const tableFilters = filtersService.getFilters(trimmedDb, trimmedTable);
+    const tableItems = await getTableData(trimmedDb, trimmedTable, tableFilters);
 
     // MySQL: only one auto column and it must be the primary key. So allow autoIncrement only on the first unique_key.
     const firstUniqueKey = tableConfig.unique_keys && tableConfig.unique_keys[0];

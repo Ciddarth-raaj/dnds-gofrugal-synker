@@ -3,9 +3,14 @@ import cronstrue from "cronstrue";
 import { apiFetch } from "../lib/api";
 import { formatDateTime } from "../lib/date";
 import { getSchedule, saveSchedule } from "../lib/logs";
+import FilterDialog from "../components/FilterDialog";
 
 function tableKey(dbName, tableName) {
   return `${dbName}\0${tableName}`;
+}
+
+function filterStorageKey(dbName, tableName) {
+  return `${dbName}_${tableName}`;
 }
 
 export default function Home() {
@@ -19,6 +24,9 @@ export default function Home() {
   const [message, setMessage] = useState({ type: null, text: null });
 
   const [nextRuns, setNextRuns] = useState([]);
+  const [expandedDbs, setExpandedDbs] = useState(new Set());
+  const [allFilters, setAllFilters] = useState({});
+  const [filterDialog, setFilterDialog] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,9 +36,11 @@ export default function Home() {
         const { res: dbRes, data: dbData } = dbResult;
         if (cancelled) return;
         if (dbRes.ok && dbData.databases) {
-          setDatabases(dbData.databases);
+          const dbs = dbData.databases;
+          setDatabases(dbs);
+          if (dbs.length > 0) setExpandedDbs((prev) => (prev.size ? prev : new Set([dbs[0]])));
           const byDb = {};
-          for (const db of dbData.databases) {
+          for (const db of dbs) {
             const { data: td } = await apiFetch(`/api/databases/${encodeURIComponent(db)}/tables`);
             if (!cancelled) byDb[db] = td.tables || [];
           }
@@ -51,6 +61,10 @@ export default function Home() {
           setSelected(new Set());
         }
         if (fromApi) saveSchedule(fromApi);
+        const filtersRes = await apiFetch("/api/filters");
+        if (!cancelled && filtersRes.res.ok && filtersRes.data.filters) {
+          setAllFilters(filtersRes.data.filters);
+        }
       } catch (e) {
         if (!cancelled) setMessage({ type: "error", text: e.message || "Failed to load" });
       } finally {
@@ -87,6 +101,31 @@ export default function Home() {
       } catch (e) {
         setMessage({ type: "error", text: e.message });
       }
+    }
+  }
+
+  function toggleDb(dbName) {
+    setExpandedDbs((prev) => {
+      const next = new Set(prev);
+      if (next.has(dbName)) next.delete(dbName);
+      else next.add(dbName);
+      return next;
+    });
+  }
+
+  async function handleSaveFilters(dbName, tableName, filters) {
+    try {
+      const { res } = await apiFetch("/api/filters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dbName, tableName, filters }),
+      });
+      if (res.ok) {
+        const key = filterStorageKey(dbName, tableName);
+        setAllFilters((prev) => ({ ...prev, [key]: filters }));
+      }
+    } catch (e) {
+      setMessage({ type: "error", text: e.message || "Failed to save filters" });
     }
   }
 
@@ -230,31 +269,67 @@ export default function Home() {
         <h2 className="tree-title">Databases & tables</h2>
         <p className="tree-hint">Select tables to sync. Save stores the schedule on the backend so sync runs at CRON times even when this page is closed. Sync runs immediately for selected tables.</p>
         <ul className="tree-list">
-          {databases.map((dbName) => (
-            <li key={dbName} className="tree-db">
-              <span className="tree-db-name">{dbName}</span>
-              <ul className="tree-tables">
-                {(tablesByDb[dbName] || []).map((tableName) => {
-                  const key = tableKey(dbName, tableName);
-                  const checked = selected.has(key);
-                  return (
-                    <li key={key} className="tree-table">
-                      <label className="tree-table-label">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleTable(dbName, tableName)}
-                          disabled={syncing}
-                        />
-                        <span>{tableName}</span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          ))}
+          {databases.map((dbName) => {
+            const expanded = expandedDbs.has(dbName);
+            const tables = tablesByDb[dbName] || [];
+            return (
+              <li key={dbName} className="tree-db">
+                <button
+                  type="button"
+                  className="tree-db-header"
+                  onClick={() => toggleDb(dbName)}
+                  aria-expanded={expanded}
+                >
+                  <span className="tree-db-chevron" aria-hidden>{expanded ? "▼" : "▶"}</span>
+                  <span className="tree-db-name">{dbName}</span>
+                  <span className="tree-db-count">{tables.length} table{tables.length !== 1 ? "s" : ""}</span>
+                </button>
+                {expanded && (
+                  <ul className="tree-tables">
+                    {tables.map((tableName) => {
+                      const key = tableKey(dbName, tableName);
+                      const checked = selected.has(key);
+                      const filterKeyStr = filterStorageKey(dbName, tableName);
+                      const tableFilters = allFilters[filterKeyStr] || [];
+                      const hasFilters = tableFilters.length > 0;
+                      return (
+                        <li key={key} className="tree-table">
+                          <label className="tree-table-label">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleTable(dbName, tableName)}
+                              disabled={syncing}
+                            />
+                            <span className="tree-table-name">{tableName}</span>
+                          </label>
+                          <button
+                            type="button"
+                            className="tree-table-filter-btn"
+                            onClick={() => setFilterDialog({ dbName, tableName })}
+                            disabled={syncing}
+                            title={hasFilters ? `${tableFilters.length} filter(s)` : "Add filters"}
+                          >
+                            {hasFilters ? `Filter (${tableFilters.length})` : "Filter"}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
+        {filterDialog && (
+          <FilterDialog
+            dbName={filterDialog.dbName}
+            tableName={filterDialog.tableName}
+            initialFilters={allFilters[filterStorageKey(filterDialog.dbName, filterDialog.tableName)] || []}
+            onClose={() => setFilterDialog(null)}
+            onSave={(filters) => handleSaveFilters(filterDialog.dbName, filterDialog.tableName, filters)}
+          />
+        )}
         {databases.length === 0 && (
           <p className="tree-empty">No databases found. Check connection or use IS_DEV with dev-tables.json.</p>
         )}

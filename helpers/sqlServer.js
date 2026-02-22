@@ -276,29 +276,93 @@ async function getTableConfig(dbName, tableName) {
   return { table_config, unique_keys };
 }
 
+/** Safe column name for ORDER BY / WHERE: only allow names from allowed set. */
+function safeColumnName(name, allowedSet) {
+  if (typeof name !== "string" || !allowedSet || !allowedSet.has(name)) return null;
+  return `[${name.replace(/\]/g, "]]")}]`;
+}
+
+/** True if value looks like a date string (YYYY-MM-DD or ISO). */
+function isDateLikeValue(val) {
+  if (val == null) return false;
+  return /^\d{4}-\d{2}-\d{2}(T|\s|$)/.test(String(val).trim());
+}
+
+/** Bind a filter value with correct type for SQL Server (date vs string). */
+function bindFilterValue(request, paramName, value) {
+  if (isDateLikeValue(value)) {
+    const d = new Date(String(value).trim().replace(" ", "T"));
+    return request.input(paramName, sql.Date, isNaN(d.getTime()) ? value : d);
+  }
+  return request.input(paramName, value);
+}
+
 /**
  * Fetch all rows from a table as array of plain objects (column name -> value).
  * @param {string} dbName
  * @param {string} tableName
+ * @param {Array<{ column: string, operator: string, value: any }>} [filters] - optional; operator: eq, gt, gte, lt, lte, range
  * @returns {Promise<Object[]>}
  */
-async function getTableData(dbName, tableName) {
-  if (isDev()) return devData.getTableData(dbName, tableName);
+async function getTableData(dbName, tableName, filters = []) {
+  if (isDev()) return devData.getTableData(dbName, tableName, filters);
   const p = await getPool(dbName);
   const escaped = `[${tableName.replace(/\]/g, "]]")}]`;
-  const r = await p.request().query(`SELECT * FROM ${escaped}`);
-  return r.recordset.map((row) => {
-    const obj = {};
-    for (const key of Object.keys(row)) {
-      let v = row[key];
-      if (v == null) obj[key] = null;
-      else if (v instanceof Date) obj[key] = v.toISOString().replace("T", " ").slice(0, 19);
-      else if (Buffer.isBuffer(v)) obj[key] = v.toString("hex");
-      else if (typeof v === "object") obj[key] = String(v);
-      else obj[key] = v;
+  if (!filters || filters.length === 0) {
+    const r = await p.request().query(`SELECT * FROM ${escaped}`);
+    return r.recordset.map(normalizeRow);
+  }
+  let request = p.request();
+  const allowedColumns = new Set((await getTableConfig(dbName, tableName)).table_config.map((c) => c.name));
+  const conditions = [];
+  let paramIndex = 0;
+  for (const f of filters) {
+    const col = safeColumnName(f.column, allowedColumns);
+    if (!col) continue;
+    const op = (f.operator || "eq").toLowerCase();
+    if (op === "eq" && f.value != null && f.value !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+      conditions.push(`${col} = @p${paramIndex}`);
+      paramIndex++;
+    } else if (op === "gt" && f.value != null && f.value !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+      conditions.push(`${col} > @p${paramIndex}`);
+      paramIndex++;
+    } else if (op === "gte" && f.value != null && f.value !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+      conditions.push(`${col} >= @p${paramIndex}`);
+      paramIndex++;
+    } else if (op === "lt" && f.value != null && f.value !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+      conditions.push(`${col} < @p${paramIndex}`);
+      paramIndex++;
+    } else if (op === "lte" && f.value != null && f.value !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+      conditions.push(`${col} <= @p${paramIndex}`);
+      paramIndex++;
+    } else if (op === "range" && Array.isArray(f.value) && f.value.length >= 2 && f.value[0] != null && f.value[1] != null) {
+      request = bindFilterValue(request, `p${paramIndex}`, f.value[0]);
+      request = bindFilterValue(request, `p${paramIndex + 1}`, f.value[1]);
+      conditions.push(`${col} >= @p${paramIndex} AND ${col} <= @p${paramIndex + 1}`);
+      paramIndex += 2;
     }
-    return obj;
-  });
+  }
+  const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const r = await request.query(`SELECT * FROM ${escaped}${whereClause}`);
+  return r.recordset.map(normalizeRow);
+}
+
+function normalizeRow(row) {
+  const obj = {};
+  for (const key of Object.keys(row)) {
+    let v = row[key];
+    if (v == null) obj[key] = null;
+    else if (v instanceof Date) obj[key] = v.toISOString().replace("T", " ").slice(0, 19);
+    else if (Buffer.isBuffer(v)) obj[key] = v.toString("hex");
+    else if (typeof v === "object") obj[key] = String(v);
+    else obj[key] = v;
+  }
+  return obj;
 }
 
 /**

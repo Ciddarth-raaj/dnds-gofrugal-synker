@@ -12,14 +12,35 @@
               "nullable": false
             },
             { "name": "code", "type": "VARCHAR(100)", "nullable": false },
-            { "name": "name", "type": "VARCHAR(255)" }
+            { "name": "name", "type": "VARCHAR(255)" },
+            { "name": "date", "type": "DATETIME" }
           ],
           "unique_keys": ["code"],
           "table_items": [
-            { "id": 1, "code": "ITM001", "name": "Product A" },
-            { "id": 2, "code": "ITM002", "name": "Product B" },
-            { "id": 3, "code": "ITM003", "name": "Product C" },
-            { "id": 4, "code": "ITM004", "name": "Product D" }
+            {
+              "id": 1,
+              "code": "ITM001",
+              "name": "Product A",
+              "date": "2025-02-22 10:00:00"
+            },
+            {
+              "id": 2,
+              "code": "ITM002",
+              "name": "Product B",
+              "date": "2025-02-22 10:00:00"
+            },
+            {
+              "id": 3,
+              "code": "ITM003",
+              "name": "Product C",
+              "date": "2025-02-21 10:00:00"
+            },
+            {
+              "id": 4,
+              "code": "ITM004",
+              "name": "Product D",
+              "date": "2025-02-20 10:00:00"
+            }
           ]
         }
       }

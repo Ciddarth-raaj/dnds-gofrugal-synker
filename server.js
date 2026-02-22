@@ -3,8 +3,9 @@
 const express = require("express");
 const { getEnvConfig } = require("./config/env");
 const { runSync } = require("./helpers/runSync");
-const { listDatabases, listTables } = require("./helpers/sqlServer");
+const { listDatabases, listTables, getTableConfig } = require("./helpers/sqlServer");
 const scheduler = require("./services/scheduler");
+const filtersService = require("./services/filters");
 
 const app = express();
 app.use(express.json());
@@ -40,6 +41,42 @@ app.get("/api/databases/:dbName/tables", async (req, res) => {
   try {
     const tables = await listTables(req.params.dbName);
     res.json({ tables });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get columns for a table (for filter UI)
+app.get("/api/databases/:dbName/tables/:tableName/columns", async (req, res) => {
+  try {
+    const { dbName, tableName } = req.params;
+    const config = await getTableConfig(dbName, tableName);
+    const columns = (config.table_config || []).map((c) => ({ name: c.name, type: c.type || "VARCHAR(255)" }));
+    res.json({ columns });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get all filters (keyed by dbName_tableName)
+app.get("/api/filters", (req, res) => {
+  try {
+    const filters = filtersService.loadAll();
+    res.json({ filters });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Save filters for a table. Body: { dbName, tableName, filters: [{ column, operator, value }] }
+app.post("/api/filters", (req, res) => {
+  try {
+    const { dbName, tableName, filters } = req.body || {};
+    if (!dbName || !tableName) {
+      return res.status(400).json({ error: "dbName and tableName are required." });
+    }
+    const updated = filtersService.setFilters(dbName, tableName, Array.isArray(filters) ? filters : []);
+    res.json({ success: true, filters: updated });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
