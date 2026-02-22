@@ -357,6 +357,35 @@
   flex-shrink: 0;
 }
 
+.tree-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.tree-table-sync-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #047857;
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tree-table-sync-btn:hover:not(:disabled) {
+  background: #a7f3d0;
+  color: #065f46;
+}
+
+.tree-table-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .tree-table-filter-btn {
   flex-shrink: 0;
   padding: 0.25rem 0.5rem;

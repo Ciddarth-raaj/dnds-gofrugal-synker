@@ -27,6 +27,7 @@ export default function Home() {
   const [expandedDbs, setExpandedDbs] = useState(new Set());
   const [allFilters, setAllFilters] = useState({});
   const [filterDialog, setFilterDialog] = useState(null);
+  const [syncingTableKey, setSyncingTableKey] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +127,28 @@ export default function Home() {
       }
     } catch (e) {
       setMessage({ type: "error", text: e.message || "Failed to save filters" });
+    }
+  }
+
+  async function handleSyncTable(dbName, tableName) {
+    const key = tableKey(dbName, tableName);
+    setSyncingTableKey(key);
+    setMessage({ type: null, text: null });
+    try {
+      const { res, data } = await apiFetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dbName, tableName }),
+      });
+      if (res.ok) {
+        setMessage({ type: "success", text: data.message || `Synced ${tableName}. See Logs.` });
+      } else {
+        setMessage({ type: "error", text: data.error || "Sync failed" });
+      }
+    } catch (e) {
+      setMessage({ type: "error", text: e.message || "Sync failed" });
+    } finally {
+      setSyncingTableKey(null);
     }
   }
 
@@ -292,6 +315,7 @@ export default function Home() {
                       const filterKeyStr = filterStorageKey(dbName, tableName);
                       const tableFilters = allFilters[filterKeyStr] || [];
                       const hasFilters = tableFilters.length > 0;
+                      const tableSyncing = syncingTableKey === key;
                       return (
                         <li key={key} className="tree-table">
                           <label className="tree-table-label">
@@ -303,15 +327,26 @@ export default function Home() {
                             />
                             <span className="tree-table-name">{tableName}</span>
                           </label>
-                          <button
-                            type="button"
-                            className="tree-table-filter-btn"
-                            onClick={() => setFilterDialog({ dbName, tableName })}
-                            disabled={syncing}
-                            title={hasFilters ? `${tableFilters.length} filter(s)` : "Add filters"}
-                          >
-                            {hasFilters ? `Filter (${tableFilters.length})` : "Filter"}
-                          </button>
+                          <div className="tree-table-actions">
+                            <button
+                              type="button"
+                              className="tree-table-sync-btn"
+                              onClick={() => handleSyncTable(dbName, tableName)}
+                              disabled={syncing || tableSyncing}
+                              title="Sync this table now"
+                            >
+                              {tableSyncing ? "Syncing…" : "Sync"}
+                            </button>
+                            <button
+                              type="button"
+                              className="tree-table-filter-btn"
+                              onClick={() => setFilterDialog({ dbName, tableName })}
+                              disabled={syncing}
+                              title={hasFilters ? `${tableFilters.length} filter(s)` : "Add filters"}
+                            >
+                              {hasFilters ? `Filter (${tableFilters.length})` : "Filter"}
+                            </button>
+                          </div>
                         </li>
                       );
                     })}
