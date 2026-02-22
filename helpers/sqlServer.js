@@ -61,8 +61,8 @@ async function tableExists(dbName, tableName) {
 }
 
 /**
- * Map SQL Server DATA_TYPE + length/scale to API type string.
- * API expects: INT, VARCHAR(n), TEXT, DECIMAL(p,s), DATETIME, etc.
+ * Map SQL Server column type to MariaDB/MySQL-compatible type string for sync API.
+ * Output: INT, BIGINT, VARCHAR(n), TEXT, DECIMAL(p,s), DATETIME, etc.
  */
 function mapSqlTypeToApi(row) {
   const type = (row.DATA_TYPE || "").toLowerCase();
@@ -166,15 +166,19 @@ async function getTableConfig(dbName, tableName) {
   `);
 
   const pkColumns = await getPrimaryKeyColumns(dbName, tableName);
-  // Only one column may have primaryKey: true (MySQL allows single PK; backend errors on multiple).
+  // MariaDB/MySQL: only one PRIMARY KEY; only one AUTO_INCREMENT and it must be that key.
   const firstPkColumn = pkColumns.length > 0 ? pkColumns[0] : null;
-  const table_config = cols.recordset.map((row) => ({
-    name: row.COLUMN_NAME,
-    type: mapSqlTypeToApi(row),
-    primaryKey: row.COLUMN_NAME === firstPkColumn,
-    autoIncrement: row.IS_IDENTITY === 1,
-    nullable: row.IS_NULLABLE === "YES",
-  }));
+  const table_config = cols.recordset.map((row) => {
+    const isPk = row.COLUMN_NAME === firstPkColumn;
+    const isIdentity = row.IS_IDENTITY === 1;
+    return {
+      name: row.COLUMN_NAME,
+      type: mapSqlTypeToApi(row),
+      primaryKey: isPk,
+      autoIncrement: isPk && isIdentity,
+      nullable: row.IS_NULLABLE === "YES",
+    };
+  });
 
   const unique_keys = pkColumns.length > 0 ? pkColumns : [cols.recordset[0]?.COLUMN_NAME].filter(Boolean);
   if (unique_keys.length === 0) {
