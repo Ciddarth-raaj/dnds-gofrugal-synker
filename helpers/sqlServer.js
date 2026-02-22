@@ -60,23 +60,30 @@ async function tableExists(dbName, tableName) {
   return r.recordset.length > 0;
 }
 
-/** MariaDB/MySQL max row size (bytes). Stay under 65535 to avoid ER_TOO_BIG_ROWSIZE. utf8mb4 = 4 bytes/char. */
-const MAX_ROW_SIZE = 65000;
+/**
+ * InnoDB compact row format limit (bytes). Error: "Row size too large (> 8126)".
+ * Use 8000 to stay under; only TEXT/BLOB are stored off-row and count as ~12 bytes.
+ */
+const MAX_ROW_SIZE = 8000;
+
+/** Max VARCHAR length kept inline (chars). Larger → TEXT to avoid row overflow. utf8mb4 = 4 bytes/char. */
+const MAX_VARCHAR_INLINE = 500;
 
 /**
- * Estimated byte size of a column type in MariaDB (utf8mb4). Used to avoid ER_TOO_BIG_ROWSIZE.
+ * Estimated byte size of a column type in MariaDB InnoDB (utf8mb4 = 4 bytes/char).
+ * TEXT/BLOB: stored off-row, only a small prefix in row (~12 bytes).
  */
 function typeByteSize(typeStr) {
   if (!typeStr) return 0;
   const t = typeStr.toUpperCase();
-  if (t === "TEXT" || t.startsWith("BLOB")) return 12; // stored off-row, pointer in row
+  if (t === "TEXT" || t.startsWith("BLOB")) return 12;
   const vMatch = t.match(/^VARCHAR\((\d+)\)$/);
-  if (vMatch) return Math.min(Number(vMatch[1], 10) * 4, 16383) || 12; // utf8mb4, max in-row ~16383*4
+  if (vMatch) return Number(vMatch[1]) * 4;
   if (t === "INT" || t === "INTEGER") return 4;
   if (t === "BIGINT") return 8;
   if (t === "DATETIME" || t === "TIMESTAMP") return 8;
   if (t.startsWith("DECIMAL")) return 8;
-  return 16; // conservative for others
+  return 16;
 }
 
 /**
@@ -107,12 +114,12 @@ function mapSqlTypeToApi(row) {
       return "DECIMAL(18,6)";
     case "varchar":
     case "char":
-      if (maxLen === -1) return "TEXT";
+      if (maxLen === -1 || (maxLen != null && maxLen > MAX_VARCHAR_INLINE)) return "TEXT";
       return maxLen != null && maxLen > 0 ? `VARCHAR(${maxLen})` : "VARCHAR(255)";
     case "nvarchar":
     case "nchar":
-      if (maxLen === -1) return "TEXT";
-      return maxLen != null && maxLen > 0 ? `VARCHAR(${Math.min(maxLen, 4000)})` : "VARCHAR(255)";
+      if (maxLen === -1 || (maxLen != null && maxLen > MAX_VARCHAR_INLINE)) return "TEXT";
+      return maxLen != null && maxLen > 0 ? `VARCHAR(${Math.min(maxLen, MAX_VARCHAR_INLINE)})` : "VARCHAR(255)";
     case "text":
     case "ntext":
       return "TEXT";
