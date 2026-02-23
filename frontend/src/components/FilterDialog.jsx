@@ -51,6 +51,8 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
     if (newOperator === "range" && (!Array.isArray(value) || value.length < 2)) return;
     if (newOperator !== "range" && (value === "" || value == null)) return;
     setFilters((prev) => [...prev, { column: newColumn, operator: newOperator, value }]);
+    setNewColumn("");
+    setNewOperator("eq");
     setNewValue("");
     setNewValueEnd("");
   }
@@ -59,8 +61,16 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
     setFilters((prev) => prev.filter((_, i) => i !== index));
   }
 
+  const hasUnsavedNewFilter =
+    newColumn !== "" || newValue.trim() !== "" || newValueEnd.trim() !== "";
+
   function handleSave() {
+    if (hasUnsavedNewFilter) return;
     onSave(filters);
+    onClose();
+  }
+
+  function handleClose() {
     onClose();
   }
 
@@ -73,11 +83,11 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
   const isDateInput = selectedCol && isDateLikeType(selectedCol.type);
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay" onClick={handleClose}>
       <div className="dialog filter-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-header">
           <h3 className="dialog-title">Table filters — {tableName}</h3>
-          <button type="button" className="dialog-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="dialog-close" onClick={handleClose} aria-label="Close">
             ×
           </button>
         </div>
@@ -110,6 +120,11 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
                 </div>
               </section>
 
+              {hasUnsavedNewFilter && (
+                <p className="filter-unsaved-warning" role="alert">
+                  You have entered filter criteria that haven't been added. Click &quot;Add filter&quot; to include them, or your changes will not be saved.
+                </p>
+              )}
               <section className="filter-section filter-add-section">
                 <h4 className="filter-section-title">Add a filter</h4>
                 <div className="filter-add-grid">
@@ -190,10 +205,10 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <button type="button" className="btn btn-secondary" onClick={handleClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSave}>
+          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={hasUnsavedNewFilter}>
             Save filters
           </button>
         </div>

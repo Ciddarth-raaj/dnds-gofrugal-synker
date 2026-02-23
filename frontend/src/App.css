@@ -808,6 +808,16 @@
   border: 1px dashed #e2e8f0;
 }
 
+.filter-unsaved-warning {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.875rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
 .filter-item {
   display: flex;
   flex-wrap: wrap;
