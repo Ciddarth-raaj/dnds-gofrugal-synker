@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import cronstrue from "cronstrue";
+import toast from "react-hot-toast";
 import { apiFetch } from "../lib/api";
 import { formatDateTime } from "../lib/date";
 import { getSchedule, saveSchedule } from "../lib/logs";
@@ -43,7 +44,6 @@ export default function Home() {
   const [cronExpression, setCronExpression] = useState("");
   const [cronPreview, setCronPreview] = useState("");
   const [syncing, setSyncing] = useState(false);
-  const [message, setMessage] = useState({ type: null, text: null });
 
   const [nextRuns, setNextRuns] = useState([]);
   const [expandedDbs, setExpandedDbs] = useState(new Set());
@@ -100,8 +100,7 @@ export default function Home() {
           setAllFilters(filtersRes.data.filters);
         }
       } catch (e) {
-        if (!cancelled)
-          setMessage({ type: "error", text: e.message || "Failed to load" });
+        if (!cancelled) toast.error(e.message || "Failed to load");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -132,11 +131,9 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dbName, tableName }),
         });
-        if (!res.ok) {
-          setMessage({ type: "error", text: data.error || "Sync failed" });
-        }
+        if (!res.ok) toast.error(data.error || "Sync failed");
       } catch (e) {
-        setMessage({ type: "error", text: e.message });
+        toast.error(e.message);
       }
     }
   }
@@ -160,19 +157,16 @@ export default function Home() {
       if (res.ok) {
         const key = filterStorageKey(dbName, tableName);
         setAllFilters((prev) => ({ ...prev, [key]: filters }));
+        toast.success("Filters saved");
       }
     } catch (e) {
-      setMessage({
-        type: "error",
-        text: e.message || "Failed to save filters",
-      });
+      toast.error(e.message || "Failed to save filters");
     }
   }
 
   async function handleSyncTable(dbName, tableName) {
     const key = tableKey(dbName, tableName);
     setSyncingTableKey(key);
-    setMessage({ type: null, text: null });
     try {
       const { res, data } = await apiFetch("/api/sync", {
         method: "POST",
@@ -180,15 +174,12 @@ export default function Home() {
         body: JSON.stringify({ dbName, tableName }),
       });
       if (res.ok) {
-        setMessage({
-          type: "success",
-          text: data.message || `Synced ${tableName}. See Logs.`,
-        });
+        toast.success(data.message || `Synced ${tableName}. See Logs.`);
       } else {
-        setMessage({ type: "error", text: data.error || "Sync failed" });
+        toast.error(data.error || "Sync failed");
       }
     } catch (e) {
-      setMessage({ type: "error", text: e.message || "Sync failed" });
+      toast.error(e.message || "Sync failed");
     } finally {
       setSyncingTableKey(null);
     }
@@ -205,18 +196,17 @@ export default function Home() {
   }
 
   async function handleSave() {
-    setMessage({ type: null, text: null });
     const tables = [];
     selected.forEach((key) => {
       const [dbName, tableName] = key.split("\0");
       tables.push({ dbName, tableName });
     });
     if (!cronExpression.trim()) {
-      setMessage({ type: "error", text: "Enter a CRON expression" });
+      toast.error("Enter a CRON expression");
       return;
     }
     if (tables.length === 0) {
-      setMessage({ type: "error", text: "Select at least one table" });
+      toast.error("Select at least one table");
       return;
     }
     try {
@@ -229,7 +219,7 @@ export default function Home() {
         }),
       });
       if (!res.ok) {
-        setMessage({ type: "error", text: data.error || "Save failed" });
+        toast.error(data.error || "Save failed");
         return;
       }
       saveSchedule({
@@ -238,17 +228,13 @@ export default function Home() {
       });
       setNextRuns(data.nextRuns || []);
       setSchedulePaused(Boolean(data.paused));
-      setMessage({
-        type: "success",
-        text: "Schedule saved. Backend will run sync at CRON times (even when this page is closed).",
-      });
+      toast.success("Schedule saved. Backend will run sync at CRON times (even when this page is closed).");
     } catch (e) {
-      setMessage({ type: "error", text: e.message || "Save failed" });
+      toast.error(e.message || "Save failed");
     }
   }
 
   function handleReset() {
-    setMessage({ type: null, text: null });
     const saved = getSchedule();
     if (saved?.cronExpression) setCronExpression(saved.cronExpression);
     else setCronExpression("");
@@ -261,7 +247,7 @@ export default function Home() {
     } else {
       setSelected(new Set());
     }
-    setMessage({ type: "success", text: "Reset to last saved state." });
+    toast.success("Reset to last saved state.");
   }
 
   async function handleSync() {
@@ -271,21 +257,16 @@ export default function Home() {
       tables.push({ dbName, tableName });
     });
     if (tables.length === 0) {
-      setMessage({ type: "error", text: "Select at least one table" });
+      toast.error("Select at least one table");
       return;
     }
     setSyncing(true);
-    setMessage({ type: null, text: null });
     await runSyncForTables(tables);
-    setMessage({
-      type: "success",
-      text: `Sync completed for ${tables.length} table(s). See Logs.`,
-    });
+    toast.success(`Sync completed for ${tables.length} table(s). See Logs.`);
     setSyncing(false);
   }
 
   async function handlePauseResume(paused) {
-    setMessage({ type: null, text: null });
     try {
       const { res, data } = await apiFetch("/api/schedule/pause", {
         method: "POST",
@@ -293,21 +274,17 @@ export default function Home() {
         body: JSON.stringify({ paused }),
       });
       if (!res.ok) {
-        setMessage({
-          type: "error",
-          text: data.error || "Failed to update pause state",
-        });
+        toast.error(data.error || "Failed to update pause state");
         return;
       }
       setSchedulePaused(Boolean(data.paused));
-      setMessage({
-        type: "success",
-        text: data.paused
+      toast.success(
+        data.paused
           ? "Scheduled sync stopped. Click Resume to run again at CRON times."
-          : "Scheduled sync resumed.",
-      });
+          : "Scheduled sync resumed."
+      );
     } catch (e) {
-      setMessage({ type: "error", text: e.message || "Failed" });
+      toast.error(e.message || "Failed");
     }
   }
 
@@ -422,17 +399,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      {message.text && (
-        <p
-          className={
-            "message message-" +
-            (message.type === "error" ? "error" : "success")
-          }
-        >
-          {message.text}
-        </p>
-      )}
 
       <div className="tree-section">
         <h2 className="tree-title">Databases & tables</h2>

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import Home from "./pages/Home.jsx";
 import Logs from "./pages/Logs.jsx";
 import { applyTheme, getLogoUrl } from "./theme";
@@ -14,6 +15,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
       <header className="app-header">
         <div className="app-header-brand">
           {logoUrl && (

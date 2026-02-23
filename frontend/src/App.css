@@ -283,25 +283,6 @@
   filter: brightness(0.92);
 }
 
-.message {
-  margin: 0 0 1rem;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-}
-
-.message-error {
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-}
-
-.message-success {
-  color: var(--primary);
-  background: var(--primary-10);
-  border: 1px solid var(--primary-20);
-}
-
 .tree-section {
   margin-top: 0.5rem;
 }
