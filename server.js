@@ -3,7 +3,7 @@
 const express = require("express");
 const { getEnvConfig } = require("./config/env");
 const { runSync } = require("./helpers/runSync");
-const { listDatabases, listTables, getTableConfig } = require("./helpers/sqlServer");
+const { listDatabases, listTables, getTableConfig, getTablePreview } = require("./helpers/sqlServer");
 const scheduler = require("./services/scheduler");
 const filtersService = require("./services/filters");
 
@@ -53,6 +53,18 @@ app.get("/api/databases/:dbName/tables/:tableName/columns", async (req, res) => 
     const config = await getTableConfig(dbName, tableName);
     const columns = (config.table_config || []).map((c) => ({ name: c.name, type: c.type || "VARCHAR(255)" }));
     res.json({ columns });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Preview: first 50 rows of a table (for View modal)
+app.get("/api/databases/:dbName/tables/:tableName/preview", async (req, res) => {
+  try {
+    const { dbName, tableName } = req.params;
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const rows = await getTablePreview(dbName, tableName, limit);
+    res.json({ rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

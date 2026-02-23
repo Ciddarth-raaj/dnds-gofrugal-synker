@@ -314,9 +314,40 @@
 }
 
 .tree-hint {
-  margin: 0 0 1rem;
+  margin: 0 0 0.75rem;
   font-size: 0.85rem;
   color: #64748b;
+}
+
+.tree-search-wrap {
+  margin-bottom: 1rem;
+}
+
+.tree-search-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.tree-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-20);
+}
+
+.tree-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.search-highlight {
+  background: #fef08a;
+  color: #1e293b;
+  padding: 0 0.1em;
+  border-radius: 2px;
 }
 
 .tree-list {
@@ -368,6 +399,11 @@
   color: #64748b;
 }
 
+.tree-db-selected {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .tree-tables {
   list-style: none;
   margin: 0;
@@ -376,8 +412,18 @@
   border-top: 1px solid #e2e8f0;
 }
 
-.tree-table {
+.tree-table-row {
   margin: 0.2rem 0;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.tree-table-row:hover {
+  background: #f1f5f9;
+}
+
+.tree-table {
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -419,6 +465,29 @@
   align-items: center;
   gap: 0.4rem;
   flex-shrink: 0;
+}
+
+.tree-table-view-btn {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #475569;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tree-table-view-btn:hover:not(:disabled) {
+  background: #cbd5e1;
+  color: #1e293b;
+}
+
+.tree-table-view-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .tree-table-sync-btn {
@@ -486,7 +555,8 @@
   }
 }
 
-.dialog {
+.dialog,
+.dialog-card {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
@@ -497,6 +567,128 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.2s ease-out;
+}
+
+.table-preview-dialog {
+  max-width: 90vw;
+  width: 100%;
+}
+
+.table-preview-body {
+  padding: 1rem 1.25rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 1rem;
+}
+
+.table-preview-loading,
+.table-preview-error,
+.table-preview-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.table-preview-error {
+  color: #b91c1c;
+}
+
+/* Outer: scrollbar lives here, outside the bordered table container */
+.table-preview-scroll {
+  overflow: auto;
+  margin-top: 0.5rem;
+  /* Firefox: custom scrollbar colors */
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+/* Inner: table container with border; scrollbar is to the right of this */
+.table-preview-scroll-inner {
+  display: inline-block;
+  min-width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* WebKit (Chrome, Safari, Edge): custom scrollbar */
+.table-preview-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.table-preview-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 0 0 6px 0;
+}
+
+.table-preview-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 6px;
+  border: 3px solid #f1f5f9;
+  min-height: 32px;
+  min-width: 32px;
+}
+
+.table-preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.table-preview-scroll::-webkit-scrollbar-thumb:active {
+  background: #475569;
+}
+
+.table-preview-scroll::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+  border-radius: 0 0 6px 0;
+}
+
+.table-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.table-preview-th {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.table-preview-td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-preview-td .table-preview-null {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.table-preview-meta {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
 @keyframes slideUp {

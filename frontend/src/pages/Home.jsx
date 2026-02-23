@@ -4,9 +4,31 @@ import { apiFetch } from "../lib/api";
 import { formatDateTime } from "../lib/date";
 import { getSchedule, saveSchedule } from "../lib/logs";
 import FilterDialog from "../components/FilterDialog";
+import TablePreviewModal from "../components/TablePreviewModal";
 
 function tableKey(dbName, tableName) {
   return `${dbName}\0${tableName}`;
+}
+
+/** Wrap matching substrings in <mark> (case-insensitive). Returns array of strings and elements. */
+function highlightMatch(text, search) {
+  if (!search || !String(text)) return [String(text)];
+  const str = String(text);
+  const q = String(search).trim();
+  if (!q) return [str];
+  const lower = str.toLowerCase();
+  const lowerQ = q.toLowerCase();
+  const parts = [];
+  let last = 0;
+  let i = lower.indexOf(lowerQ);
+  while (i !== -1) {
+    if (i > last) parts.push(str.slice(last, i));
+    parts.push(<mark key={parts.length} className="search-highlight">{str.slice(i, i + q.length)}</mark>);
+    last = i + q.length;
+    i = lower.indexOf(lowerQ, last);
+  }
+  if (last < str.length) parts.push(str.slice(last));
+  return parts.length ? parts : [str];
 }
 
 function filterStorageKey(dbName, tableName) {
@@ -29,6 +51,8 @@ export default function Home() {
   const [filterDialog, setFilterDialog] = useState(null);
   const [syncingTableKey, setSyncingTableKey] = useState(null);
   const [schedulePaused, setSchedulePaused] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
+  const [previewModal, setPreviewModal] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -417,10 +441,33 @@ export default function Home() {
           runs at CRON times even when this page is closed. Sync runs
           immediately for selected tables.
         </p>
+        <div className="tree-search-wrap">
+          <input
+            type="search"
+            className="tree-search-input"
+            placeholder="Search databases and tables…"
+            value={tableSearch}
+            onChange={(e) => setTableSearch(e.target.value)}
+            aria-label="Search tables"
+          />
+        </div>
         <ul className="tree-list">
           {databases.map((dbName) => {
             const expanded = expandedDbs.has(dbName);
-            const tables = tablesByDb[dbName] || [];
+            let tables = tablesByDb[dbName] || [];
+            const searchTrim = tableSearch.trim().toLowerCase();
+            if (searchTrim) {
+              const dbMatch = dbName.toLowerCase().includes(searchTrim);
+              tables = tables.filter(
+                (t) => dbMatch || t.toLowerCase().includes(searchTrim)
+              );
+              if (tables.length === 0) return null;
+            }
+            // Selected tables first, then unselected; keep same order within each group
+            tables = [
+              ...tables.filter((t) => selected.has(tableKey(dbName, t))),
+              ...tables.filter((t) => !selected.has(tableKey(dbName, t))),
+            ];
             return (
               <li key={dbName} className="tree-db">
                 <button
@@ -432,9 +479,17 @@ export default function Home() {
                   <span className="tree-db-chevron" aria-hidden>
                     {expanded ? "▼" : "▶"}
                   </span>
-                  <span className="tree-db-name">{dbName}</span>
+                  <span className="tree-db-name">
+                    {searchTrim ? highlightMatch(dbName, tableSearch) : dbName}
+                  </span>
                   <span className="tree-db-count">
                     {tables.length} table{tables.length !== 1 ? "s" : ""}
+                    {(() => {
+                      const n = tables.filter((t) => selected.has(tableKey(dbName, t))).length;
+                      return n > 0 ? (
+                        <span className="tree-db-selected"> ({n} selected)</span>
+                      ) : null;
+                    })()}
                   </span>
                 </button>
                 {expanded && (
@@ -447,43 +502,60 @@ export default function Home() {
                       const hasFilters = tableFilters.length > 0;
                       const tableSyncing = syncingTableKey === key;
                       return (
-                        <li key={key} className="tree-table">
-                          <label className="tree-table-label">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleTable(dbName, tableName)}
-                              disabled={syncing}
-                            />
-                            <span className="tree-table-name">{tableName}</span>
-                          </label>
-                          <div className="tree-table-actions">
-                            <button
-                              type="button"
-                              className="tree-table-sync-btn"
-                              onClick={() => handleSyncTable(dbName, tableName)}
-                              disabled={syncing || tableSyncing}
-                              title="Sync this table now"
-                            >
-                              {tableSyncing ? "Syncing…" : "Sync"}
-                            </button>
-                            <button
-                              type="button"
-                              className="tree-table-filter-btn"
-                              onClick={() =>
-                                setFilterDialog({ dbName, tableName })
-                              }
-                              disabled={syncing}
-                              title={
-                                hasFilters
-                                  ? `${tableFilters.length} filter(s)`
-                                  : "Add filters"
-                              }
-                            >
-                              {hasFilters
-                                ? `Filter (${tableFilters.length})`
-                                : "Filter"}
-                            </button>
+                        <li key={key} className="tree-table-row">
+                          <div className="tree-table">
+                            <label className="tree-table-label">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleTable(dbName, tableName)}
+                                disabled={syncing}
+                              />
+                              <span className="tree-table-name">
+                                {searchTrim
+                                  ? highlightMatch(tableName, tableSearch)
+                                  : tableName}
+                              </span>
+                            </label>
+                            <div className="tree-table-actions">
+                              <button
+                                type="button"
+                                className="tree-table-view-btn"
+                                onClick={() =>
+                                  setPreviewModal({ dbName, tableName })
+                                }
+                                disabled={syncing}
+                                title="View first 50 rows"
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                className="tree-table-sync-btn"
+                                onClick={() => handleSyncTable(dbName, tableName)}
+                                disabled={syncing || tableSyncing}
+                                title="Sync this table now"
+                              >
+                                {tableSyncing ? "Syncing…" : "Sync"}
+                              </button>
+                              <button
+                                type="button"
+                                className="tree-table-filter-btn"
+                                onClick={() =>
+                                  setFilterDialog({ dbName, tableName })
+                                }
+                                disabled={syncing}
+                                title={
+                                  hasFilters
+                                    ? `${tableFilters.length} filter(s)`
+                                    : "Add filters"
+                                }
+                              >
+                                {hasFilters
+                                  ? `Filter (${tableFilters.length})`
+                                  : "Filter"}
+                              </button>
+                            </div>
                           </div>
                         </li>
                       );
@@ -511,6 +583,13 @@ export default function Home() {
                 filters
               )
             }
+          />
+        )}
+        {previewModal && (
+          <TablePreviewModal
+            dbName={previewModal.dbName}
+            tableName={previewModal.tableName}
+            onClose={() => setPreviewModal(null)}
           />
         )}
         {databases.length === 0 && (

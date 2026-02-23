@@ -312,6 +312,7 @@ async function getTableData(dbName, tableName, filters = []) {
     const r = await p.request().query(`SELECT * FROM ${escaped}`);
     return r.recordset.map(normalizeRow);
   }
+  // For filtered query we don't add TOP here; caller can slice.
   let request = p.request();
   const allowedColumns = new Set((await getTableConfig(dbName, tableName)).table_config.map((c) => c.name));
   const conditions = [];
@@ -352,6 +353,25 @@ async function getTableData(dbName, tableName, filters = []) {
   return r.recordset.map(normalizeRow);
 }
 
+/**
+ * Fetch first N rows from a table (no filters). For preview/UI.
+ * @param {string} dbName
+ * @param {string} tableName
+ * @param {number} [limit=50]
+ * @returns {Promise<Object[]>}
+ */
+async function getTablePreview(dbName, tableName, limit = 50) {
+  if (isDev()) {
+    const rows = await devData.getTableData(dbName, tableName, []);
+    return rows.slice(0, limit);
+  }
+  const p = await getPool(dbName);
+  const escaped = `[${tableName.replace(/\]/g, "]]")}]`;
+  const top = Math.min(Math.max(1, parseInt(limit, 10) || 50), 500);
+  const r = await p.request().query(`SELECT TOP ${top} * FROM ${escaped}`);
+  return r.recordset.map(normalizeRow);
+}
+
 function normalizeRow(row) {
   const obj = {};
   for (const key of Object.keys(row)) {
@@ -384,5 +404,6 @@ module.exports = {
   tableExists,
   getTableConfig,
   getTableData,
+  getTablePreview,
   closePool,
 };
