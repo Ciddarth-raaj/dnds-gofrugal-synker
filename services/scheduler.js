@@ -20,6 +20,19 @@ const MAX_LOGS = 500;
 let currentJob = null;
 let currentExpression = null;
 let paused = false;
+/** Guard: only one scheduled run at a time */
+let scheduledRunInProgress = false;
+
+/** Deduplicate tables by dbName+tableName so each table is synced at most once per run */
+function dedupeTables(tables) {
+  const seen = new Set();
+  return (tables || []).filter((t) => {
+    const key = `${t.dbName}\0${t.tableName}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -68,17 +81,24 @@ function appendLog(entry) {
 
 async function runScheduledSync(tables) {
   if (paused) return;
-  for (const { dbName, tableName } of tables) {
-    try {
-      const result = await runSync(dbName, tableName);
-      if (result.success) {
-        appendLog({ dbName, tableName, status: "success", message: result.message, synced: result.synced });
-      } else {
-        appendLog({ dbName, tableName, status: "error", message: result.error });
+  if (scheduledRunInProgress) return;
+  scheduledRunInProgress = true;
+  const list = dedupeTables(tables);
+  try {
+    for (const { dbName, tableName } of list) {
+      try {
+        const result = await runSync(dbName, tableName);
+        if (result.success) {
+          appendLog({ dbName, tableName, status: "success", message: result.message, synced: result.synced });
+        } else {
+          appendLog({ dbName, tableName, status: "error", message: result.error });
+        }
+      } catch (e) {
+        appendLog({ dbName, tableName, status: "error", message: e.message || String(e) });
       }
-    } catch (e) {
-      appendLog({ dbName, tableName, status: "error", message: e.message || String(e) });
     }
+  } finally {
+    scheduledRunInProgress = false;
   }
 }
 
@@ -105,7 +125,11 @@ function setSchedule(cronExpression, selectedTables) {
     return { nextRuns: [] };
   }
   const expr = cronExpression.trim();
-  const tables = selectedTables;
+  const tables = dedupeTables(selectedTables);
+  if (!tables.length) {
+    saveSchedule(null);
+    return { nextRuns: [] };
+  }
   if (!cron.validate(expr)) {
     saveSchedule(null);
     throw new Error("Invalid CRON expression");
@@ -121,7 +145,11 @@ function setSchedule(cronExpression, selectedTables) {
 
 function stopCurrentJob() {
   if (currentJob) {
-    currentJob.stop();
+    try {
+      currentJob.stop();
+    } catch (e) {
+      console.warn("Scheduler: error stopping previous job", e.message);
+    }
     currentJob = null;
     currentExpression = null;
   }
@@ -157,10 +185,18 @@ function init() {
   if (schedule?.cronExpression && schedule?.selectedTables?.length) {
     if (cron.validate(schedule.cronExpression)) {
       paused = Boolean(schedule.paused);
+      const tables = dedupeTables(schedule.selectedTables);
+      if (!tables.length) {
+        saveSchedule(null);
+        return;
+      }
       currentJob = cron.schedule(schedule.cronExpression, async () => {
-        await runScheduledSync(schedule.selectedTables);
+        await runScheduledSync(tables);
       });
       currentExpression = schedule.cronExpression;
+      if (tables.length !== schedule.selectedTables.length) {
+        saveSchedule({ ...schedule, selectedTables: tables });
+      }
     } else {
       console.warn("Scheduler: invalid saved cron, cleared.");
       saveSchedule(null);
