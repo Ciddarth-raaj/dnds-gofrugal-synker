@@ -24,7 +24,11 @@ function highlightMatch(text, search) {
   let i = lower.indexOf(lowerQ);
   while (i !== -1) {
     if (i > last) parts.push(str.slice(last, i));
-    parts.push(<mark key={parts.length} className="search-highlight">{str.slice(i, i + q.length)}</mark>);
+    parts.push(
+      <mark key={parts.length} className="search-highlight">
+        {str.slice(i, i + q.length)}
+      </mark>
+    );
     last = i + q.length;
     i = lower.indexOf(lowerQ, last);
   }
@@ -71,7 +75,12 @@ export default function Home() {
             const { data: td } = await apiFetch(
               `/api/databases/${encodeURIComponent(db)}/tables`
             );
-            if (!cancelled) byDb[db] = td.tables || [];
+            if (!cancelled) {
+              byDb[db] = {
+                tables: td.tables || [],
+                views: td.views || [],
+              };
+            }
           }
           if (!cancelled) setTablesByDb(byDb);
         }
@@ -228,7 +237,9 @@ export default function Home() {
       });
       setNextRuns(data.nextRuns || []);
       setSchedulePaused(Boolean(data.paused));
-      toast.success("Schedule saved. Backend will run sync at CRON times (even when this page is closed).");
+      toast.success(
+        "Schedule saved. Backend will run sync at CRON times (even when this page is closed)."
+      );
     } catch (e) {
       toast.error(e.message || "Save failed");
     }
@@ -420,20 +431,31 @@ export default function Home() {
         <ul className="tree-list">
           {databases.map((dbName) => {
             const expanded = expandedDbs.has(dbName);
-            let tables = tablesByDb[dbName] || [];
+            const dbData = tablesByDb[dbName] || { tables: [], views: [] };
+            const tables = dbData.tables || [];
+            const views = dbData.views || [];
+            const allItems = [
+              ...tables.map((name) => ({ name, kind: "table" })),
+              ...views.map((name) => ({ name, kind: "view" })),
+            ];
+            let items = allItems;
             const searchTrim = tableSearch.trim().toLowerCase();
             if (searchTrim) {
               const dbMatch = dbName.toLowerCase().includes(searchTrim);
-              tables = tables.filter(
-                (t) => dbMatch || t.toLowerCase().includes(searchTrim)
+              items = items.filter(
+                ({ name }) => dbMatch || name.toLowerCase().includes(searchTrim)
               );
-              if (tables.length === 0) return null;
+              if (items.length === 0) return null;
             }
-            // Selected tables first, then unselected; keep same order within each group
-            tables = [
-              ...tables.filter((t) => selected.has(tableKey(dbName, t))),
-              ...tables.filter((t) => !selected.has(tableKey(dbName, t))),
+            // Selected first, then unselected; keep same order within each group
+            items = [
+              ...items.filter((it) => selected.has(tableKey(dbName, it.name))),
+              ...items.filter((it) => !selected.has(tableKey(dbName, it.name))),
             ];
+            const totalCount = items.length;
+            const selectedCount = items.filter((it) =>
+              selected.has(tableKey(dbName, it.name))
+            ).length;
             return (
               <li key={dbName} className="tree-db">
                 <button
@@ -450,17 +472,22 @@ export default function Home() {
                   </span>
                   <span className="tree-db-count">
                     {tables.length} table{tables.length !== 1 ? "s" : ""}
-                    {(() => {
-                      const n = tables.filter((t) => selected.has(tableKey(dbName, t))).length;
-                      return n > 0 ? (
-                        <span className="tree-db-selected"> ({n} selected)</span>
-                      ) : null;
-                    })()}
+                    {views.length > 0 && (
+                      <>
+                        , {views.length} view{views.length !== 1 ? "s" : ""}
+                      </>
+                    )}
+                    {selectedCount > 0 ? (
+                      <span className="tree-db-selected">
+                        {" "}
+                        ({selectedCount} selected)
+                      </span>
+                    ) : null}
                   </span>
                 </button>
                 {expanded && (
                   <ul className="tree-tables">
-                    {tables.map((tableName) => {
+                    {items.map(({ name: tableName, kind }) => {
                       const key = tableKey(dbName, tableName);
                       const checked = selected.has(key);
                       const filterKeyStr = filterStorageKey(dbName, tableName);
@@ -481,6 +508,14 @@ export default function Home() {
                                 {searchTrim
                                   ? highlightMatch(tableName, tableSearch)
                                   : tableName}
+                                {kind === "view" && (
+                                  <span
+                                    className="tree-item-badge"
+                                    title="View"
+                                  >
+                                    View
+                                  </span>
+                                )}
                               </span>
                             </label>
                             <div className="tree-table-actions">
@@ -498,7 +533,9 @@ export default function Home() {
                               <button
                                 type="button"
                                 className="tree-table-sync-btn"
-                                onClick={() => handleSyncTable(dbName, tableName)}
+                                onClick={() =>
+                                  handleSyncTable(dbName, tableName)
+                                }
                                 disabled={syncing || tableSyncing}
                                 title="Sync this table now"
                               >

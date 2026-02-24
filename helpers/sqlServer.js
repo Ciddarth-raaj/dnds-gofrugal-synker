@@ -68,6 +68,23 @@ async function listTables(dbName) {
 }
 
 /**
+ * List all view names in a database.
+ * @param {string} dbName
+ * @returns {Promise<string[]>}
+ */
+async function listViews(dbName) {
+  if (isDev()) return devData.listViews(dbName);
+  const p = await getPool(dbName);
+  const r = await p.request().query(`
+    SELECT TABLE_NAME AS name
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_TYPE = 'VIEW'
+    ORDER BY TABLE_NAME
+  `);
+  return r.recordset.map((row) => row.name);
+}
+
+/**
  * Check if a database exists on the server.
  * @param {string} dbName
  * @returns {Promise<boolean>}
@@ -82,9 +99,9 @@ async function databaseExists(dbName) {
 }
 
 /**
- * Check if a table exists in the given database.
+ * Check if a table or view exists in the given database.
  * @param {string} dbName
- * @param {string} tableName - TABLE_NAME (single table name)
+ * @param {string} tableName - TABLE_NAME (table or view name)
  * @returns {Promise<boolean>}
  */
 async function tableExists(dbName, tableName) {
@@ -96,7 +113,8 @@ async function tableExists(dbName, tableName) {
     .query(`
     SELECT 1 AS ok
     FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = @tableName
+    WHERE TABLE_NAME = @tableName
+      AND (TABLE_TYPE = 'BASE TABLE' OR TABLE_TYPE = 'VIEW')
   `);
   return r.recordset.length > 0;
 }
@@ -400,6 +418,7 @@ module.exports = {
   getPool,
   listDatabases,
   listTables,
+  listViews,
   databaseExists,
   tableExists,
   getTableConfig,

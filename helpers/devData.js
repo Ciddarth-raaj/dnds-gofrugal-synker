@@ -30,6 +30,13 @@ async function listTables(dbName) {
   return Object.keys(db.tables);
 }
 
+async function listViews(dbName) {
+  const data = loadDevTables();
+  const db = data.databases && data.databases[dbName];
+  if (!db || !db.views) return [];
+  return Object.keys(db.views);
+}
+
 async function databaseExists(dbName) {
   const data = loadDevTables();
   return Boolean(data.databases && data.databases[dbName]);
@@ -38,14 +45,22 @@ async function databaseExists(dbName) {
 async function tableExists(dbName, tableName) {
   const data = loadDevTables();
   const db = data.databases && data.databases[dbName];
-  return Boolean(db && db.tables && db.tables[tableName]);
+  return Boolean(
+    db &&
+      ((db.tables && db.tables[tableName]) || (db.views && db.views[tableName]))
+  );
 }
 
 async function getTableConfig(dbName, tableName) {
   const data = loadDevTables();
   const db = data.databases && data.databases[dbName];
-  const table = db && db.tables && db.tables[tableName];
-  if (!table) throw new Error(`Table "${tableName}" not found in dev data for database "${dbName}".`);
+  const table =
+    (db && db.tables && db.tables[tableName]) ||
+    (db && db.views && db.views[tableName]);
+  if (!table)
+    throw new Error(
+      `Table or view "${tableName}" not found in dev data for database "${dbName}".`
+    );
   return {
     table_config: table.table_config || [],
     unique_keys: table.unique_keys || [],
@@ -136,8 +151,13 @@ function rowMatchesFilters(row, filters) {
 async function getTableData(dbName, tableName, filters = []) {
   const data = loadDevTables();
   const db = data.databases && data.databases[dbName];
-  const table = db && db.tables && db.tables[tableName];
-  if (!table) throw new Error(`Table "${tableName}" not found in dev data for database "${dbName}".`);
+  const table =
+    (db && db.tables && db.tables[tableName]) ||
+    (db && db.views && db.views[tableName]);
+  if (!table)
+    throw new Error(
+      `Table or view "${tableName}" not found in dev data for database "${dbName}".`
+    );
   const rows = Array.isArray(table.table_items) ? table.table_items : [];
   if (!filters || filters.length === 0) return rows;
   return rows.filter((row) => rowMatchesFilters(row, filters));
@@ -150,6 +170,7 @@ async function closePool() {
 module.exports = {
   listDatabases,
   listTables,
+  listViews,
   databaseExists,
   tableExists,
   getTableConfig,

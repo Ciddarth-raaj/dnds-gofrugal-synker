@@ -3,7 +3,7 @@
 const express = require("express");
 const { getEnvConfig } = require("./config/env");
 const { runSync } = require("./helpers/runSync");
-const { listDatabases, listTables, getTableConfig, getTablePreview } = require("./helpers/sqlServer");
+const { listDatabases, listTables, listViews, getTableConfig, getTablePreview } = require("./helpers/sqlServer");
 const scheduler = require("./services/scheduler");
 const filtersService = require("./services/filters");
 
@@ -36,11 +36,12 @@ app.get("/api/databases", async (req, res) => {
   }
 });
 
-// List tables in a database
+// List tables and views in a database
 app.get("/api/databases/:dbName/tables", async (req, res) => {
   try {
-    const tables = await listTables(req.params.dbName);
-    res.json({ tables });
+    const dbName = req.params.dbName;
+    const [tables, views] = await Promise.all([listTables(dbName), listViews(dbName)]);
+    res.json({ tables, views });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
