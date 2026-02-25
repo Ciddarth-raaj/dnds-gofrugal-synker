@@ -6,6 +6,25 @@ $ErrorActionPreference = "Stop"
 $RepoUrl = "https://github.com/Ciddarth-raaj/dnds-gofrugal-synker.git"
 $RepoName = "dnds-gofrugal-synker"
 
+# Remove msstore source once to avoid certificate error 0x8a15005e. Requires Administrator.
+function Ensure-WingetSource {
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return }
+  if ($script:WingetSourceFixed) { return }
+  Write-Host "Removing winget 'msstore' source to avoid certificate error 0x8a15005e..."
+  $result = winget source remove --name msstore 2>&1 | Out-String
+  $script:WingetSourceFixed = $true
+  # Success, or already removed (source not found)
+  if ($LASTEXITCODE -eq 0 -or $result -match "not found|does not exist|Unknown argument") { return }
+  Write-Host ""
+  Write-Host "The msstore source could not be removed (often needs Administrator)."
+  Write-Host "Do this once, then run this script again:"
+  Write-Host "  1. Right-click PowerShell -> Run as administrator"
+  Write-Host "  2. Run: winget source remove --name msstore"
+  Write-Host "  3. Close and run: .\deploy.ps1 init"
+  Write-Host ""
+  exit 1
+}
+
 function Ensure-Git {
   if (Get-Command git -ErrorAction SilentlyContinue) { return }
   Write-Host "Git not found. Installing via winget..."
@@ -13,6 +32,7 @@ function Ensure-Git {
     Write-Host "Winget not found. Install Git from https://git-scm.com/download/win"
     exit 1
   }
+  Ensure-WingetSource
   winget install --id Git.Git -e -h --source winget --accept-package-agreements --accept-source-agreements
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -29,6 +49,7 @@ function Ensure-Node {
     Write-Host "Winget not found. Install Node.js from https://nodejs.org"
     exit 1
   }
+  Ensure-WingetSource
   winget install --id OpenJS.NodeJS.LTS -e -h --source winget --accept-package-agreements --accept-source-agreements
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
   if (-not (Get-Command node -ErrorAction SilentlyContinue)) {

@@ -3,6 +3,17 @@ require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 const backendPort = process.env.PORT || 3080;
 const frontendPort = process.env.FRONTEND_PORT || 3000;
 
+// Frontend: run serve via node (Windows-friendly) or npx if serve not resolved
+let frontendScript = "node";
+let frontendArgs = ["-s", "frontend/dist", "-l", String(frontendPort)];
+try {
+  const serveScript = require.resolve("serve/build/main.js");
+  frontendArgs = [serveScript, "-s", "frontend/dist", "-l", String(frontendPort)];
+} catch (_) {
+  frontendScript = "npx";
+  frontendArgs = ["serve", "-s", "frontend/dist", "-l", String(frontendPort)];
+}
+
 module.exports = {
   apps: [
     {
@@ -16,8 +27,8 @@ module.exports = {
     },
     {
       name: "gofrugaldbsynker-frontend",
-      script: require("path").join(__dirname, "node_modules", ".bin", "serve"),
-      args: ["-s", "frontend/dist", "-l", String(frontendPort)],
+      script: frontendScript,
+      args: frontendArgs,
       cwd: __dirname,
       instances: 1,
       autorestart: true,
