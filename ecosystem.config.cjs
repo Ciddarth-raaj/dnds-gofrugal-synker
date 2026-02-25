@@ -16,8 +16,8 @@ module.exports = {
     },
     {
       name: "gofrugaldbsynker-frontend",
-      script: "npx",
-      args: ["serve", "-s", "frontend/dist", "-l", String(frontendPort)],
+      script: require("path").join(__dirname, "node_modules", ".bin", "serve"),
+      args: ["-s", "frontend/dist", "-l", String(frontendPort)],
       cwd: __dirname,
       instances: 1,
       autorestart: true,
