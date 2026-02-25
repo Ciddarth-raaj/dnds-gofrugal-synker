@@ -4,6 +4,118 @@ set -e
 REPO_URL="https://github.com/Ciddarth-raaj/dnds-gofrugal-synker.git"
 REPO_NAME="dnds-gofrugal-synker"
 
+# --- Detect OS (mac, linux, windows) ---
+detect_os() {
+  case "$(uname -s 2>/dev/null)" in
+    Darwin)   echo "mac" ;;
+    Linux)    echo "linux" ;;
+    MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+    *)        echo "unknown" ;;
+  esac
+}
+OS=$(detect_os)
+
+# --- On Windows, hand off to PowerShell script when present ---
+if [[ "$OS" == "windows" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+  PS1_PATH="$SCRIPT_DIR/deploy.ps1"
+  if [[ -f "$PS1_PATH" ]]; then
+    exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_PATH" "$@"
+  fi
+  echo "Windows detected. Please run deploy.ps1 in PowerShell, or install Git Bash and run this script again."
+  exit 1
+fi
+
+# --- Ensure Git is installed (Mac/Linux) ---
+ensure_git() {
+  if command -v git &>/dev/null; then
+    return 0
+  fi
+  echo "Git not found. Installing..."
+  if [[ "$OS" == "mac" ]]; then
+    if ! command -v brew &>/dev/null; then
+      echo "Installing Homebrew (you may be prompted for your password)..."
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      # Add brew to PATH for this session (common post-install path)
+      [[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+      [[ -x /usr/local/bin/brew ]] && eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    brew install git
+  else
+    if command -v apt-get &>/dev/null; then
+      sudo apt-get update && sudo apt-get install -y git
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y git
+    elif command -v yum &>/dev/null; then
+      sudo yum install -y git
+    elif command -v apk &>/dev/null; then
+      sudo apk add --no-cache git
+    elif command -v pacman &>/dev/null; then
+      sudo pacman -Sy --noconfirm git
+    else
+      echo "Could not detect package manager. Please install Git manually."
+      exit 1
+    fi
+  fi
+  echo "Git is ready."
+}
+
+# --- Ensure Node.js (and npm) is installed (Mac/Linux) ---
+ensure_node() {
+  if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    return 0
+  fi
+  echo "Node.js or npm not found. Installing..."
+  if [[ "$OS" == "mac" ]]; then
+    if ! command -v brew &>/dev/null; then
+      echo "Installing Homebrew..."
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      [[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+      [[ -x /usr/local/bin/brew ]] && eval "$(/usr/local/bin/brew shellenv)"
+    fi
+    brew install node
+  else
+    if command -v apt-get &>/dev/null; then
+      sudo apt-get update && sudo apt-get install -y nodejs npm || sudo apt-get install -y nodejs
+      # Some distros only have nodejs, npm may be separate
+      command -v npm &>/dev/null || sudo apt-get install -y npm
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y nodejs npm
+    elif command -v yum &>/dev/null; then
+      sudo yum install -y nodejs npm
+    elif command -v apk &>/dev/null; then
+      sudo apk add --no-cache nodejs npm
+    elif command -v pacman &>/dev/null; then
+      sudo pacman -Sy --noconfirm nodejs npm
+    else
+      echo "Could not detect package manager. Please install Node.js and npm manually (https://nodejs.org)."
+      exit 1
+    fi
+  fi
+  echo "Node.js is ready."
+}
+
+# --- Ensure PM2 is installed (Mac/Linux) ---
+ensure_pm2() {
+  if command -v pm2 &>/dev/null; then
+    return 0
+  fi
+  echo "PM2 not found. Installing globally..."
+  if [[ "$OS" == "linux" ]]; then
+    sudo npm install -g pm2
+  else
+    npm install -g pm2
+  fi
+  echo "PM2 is ready."
+}
+
+# --- Run all dependency checks/installs for init ---
+ensure_deps() {
+  ensure_git
+  ensure_node
+  ensure_pm2
+}
+
 # --- Determine repo root (for both init and update) ---
 get_repo_root() {
   if [[ -f "ecosystem.config.cjs" ]]; then
@@ -97,6 +209,7 @@ create_frontend_env() {
 
 # --- Init: clone, install, prompt .env, build, pm2 start ---
 cmd_init() {
+  ensure_deps
   local target_dir
   if [[ -d "$REPO_NAME" ]]; then
     echo "Directory $REPO_NAME already exists. Use 'update' or remove it first."
@@ -117,10 +230,6 @@ cmd_init() {
   echo "Installing and building frontend..."
   (cd frontend && npm install && npm run build)
 
-  if ! command -v pm2 &> /dev/null; then
-    echo "PM2 is not installed. Install with: npm install -g pm2"
-    exit 1
-  fi
   echo "Starting PM2..."
   pm2 start ecosystem.config.cjs
   echo "Init complete. Backend and frontend are running under PM2."
@@ -142,10 +251,8 @@ cmd_update() {
   npm install
   echo "Installing and building frontend..."
   (cd frontend && npm install && npm run build)
-  if ! command -v pm2 &> /dev/null; then
-    echo "PM2 is not installed. Install with: npm install -g pm2"
-    exit 1
-  fi
+  ensure_node
+  ensure_pm2
   echo "Restarting PM2 (stop then start for a clean frontend)..."
   pm2 delete gofrugaldbsynker-backend gofrugaldbsynker-frontend 2>/dev/null || true
   pm2 start ecosystem.config.cjs
