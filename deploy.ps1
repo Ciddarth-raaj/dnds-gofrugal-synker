@@ -13,7 +13,7 @@ function Ensure-Git {
     Write-Host "Winget not found. Install Git from https://git-scm.com/download/win"
     exit 1
   }
-  winget install --id Git.Git -e -h --accept-package-agreements --accept-source-agreements
+  winget install --id Git.Git -e -h --source winget --accept-package-agreements --accept-source-agreements
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Host "Git was installed. Please close and reopen PowerShell, then run this script again."
@@ -29,7 +29,7 @@ function Ensure-Node {
     Write-Host "Winget not found. Install Node.js from https://nodejs.org"
     exit 1
   }
-  winget install --id OpenJS.NodeJS.LTS -e -h --accept-package-agreements --accept-source-agreements
+  winget install --id OpenJS.NodeJS.LTS -e -h --source winget --accept-package-agreements --accept-source-agreements
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
   if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "Node.js was installed. Please close and reopen PowerShell, then run this script again."
