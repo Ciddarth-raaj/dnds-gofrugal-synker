@@ -43,3 +43,23 @@ After changing frontend, rebuild then restart the frontend app:
 ```bash
 npm run build --prefix frontend && pm2 restart gofrugaldbsynker-frontend
 ```
+
+## 6. Troubleshooting (Windows)
+
+**Error: connect EPERM //./pipe/rpc.sock** — PM2’s daemon socket is stuck or blocked.
+
+**Without Administrator:**
+
+1. Close every terminal/IDE window that has ever run `pm2` (so nothing is using the socket).
+2. Open **Task Manager** (Ctrl+Shift+Esc) → **Details** tab → end any **Node.js** or **PM2** processes.
+3. Open a **new** normal PowerShell (no need for Admin). Try:
+   ```powershell
+   pm2 kill
+   pm2 start ecosystem.config.cjs
+   ```
+4. If that still gives EPERM, reset PM2’s folder (it’s in your user profile, so Admin is not required):
+   ```powershell
+   Remove-Item -Recurse -Force $env:USERPROFILE\.pm2 -ErrorAction SilentlyContinue
+   pm2 start ecosystem.config.cjs
+   ```
+5. If a file is “in use” and won’t delete, restart the PC (no Admin needed for restart on most setups), then run step 4 and `pm2 start ecosystem.config.cjs` again.

@@ -54,6 +54,7 @@ export default function Home() {
   const [allFilters, setAllFilters] = useState({});
   const [filterDialog, setFilterDialog] = useState(null);
   const [syncingTableKey, setSyncingTableKey] = useState(null);
+  const [deletingTableKey, setDeletingTableKey] = useState(null);
   const [schedulePaused, setSchedulePaused] = useState(false);
   const [tableSearch, setTableSearch] = useState("");
   const [previewModal, setPreviewModal] = useState(null);
@@ -191,6 +192,30 @@ export default function Home() {
       toast.error(e.message || "Sync failed");
     } finally {
       setSyncingTableKey(null);
+    }
+  }
+
+  async function handleDeleteTable(dbName, tableName) {
+    if (!window.confirm(`Delete table "${tableName}" on the synker (remote store)? This does not delete from this server.`)) {
+      return;
+    }
+    const key = tableKey(dbName, tableName);
+    setDeletingTableKey(key);
+    try {
+      const { res, data } = await apiFetch("/api/delete-table", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dbName, tableName }),
+      });
+      if (res.ok) {
+        toast.success(data.message || `Table ${tableName} deleted on synker.`);
+      } else {
+        toast.error(data.error || "Delete failed");
+      }
+    } catch (e) {
+      toast.error(e.message || "Delete failed");
+    } finally {
+      setDeletingTableKey(null);
     }
   }
 
@@ -404,8 +429,11 @@ export default function Home() {
               className="btn btn-sync"
               onClick={handleSync}
               disabled={syncing}
+              title={syncing ? "Syncing…" : "Sync selected tables now"}
+              aria-label={syncing ? "Syncing…" : "Sync"}
             >
-              {syncing ? "Syncing…" : "Sync"}
+              <i className={`fas fa-arrows-rotate ${syncing ? "fa-spin" : ""}`} aria-hidden />
+              <span className="btn-sync-text">{syncing ? "Syncing…" : "Sync"}</span>
             </button>
           </div>
         </div>
@@ -494,6 +522,7 @@ export default function Home() {
                       const tableFilters = allFilters[filterKeyStr] || [];
                       const hasFilters = tableFilters.length > 0;
                       const tableSyncing = syncingTableKey === key;
+                      const tableDeleting = deletingTableKey === key;
                       return (
                         <li key={key} className="tree-table-row">
                           <div className="tree-table">
@@ -527,8 +556,9 @@ export default function Home() {
                                 }
                                 disabled={syncing}
                                 title="View first 50 rows"
+                                aria-label="View"
                               >
-                                View
+                                <i className="fas fa-eye" aria-hidden />
                               </button>
                               <button
                                 type="button"
@@ -538,8 +568,9 @@ export default function Home() {
                                 }
                                 disabled={syncing || tableSyncing}
                                 title="Sync this table now"
+                                aria-label={tableSyncing ? "Syncing…" : "Sync"}
                               >
-                                {tableSyncing ? "Syncing…" : "Sync"}
+                                <i className={`fas fa-arrows-rotate ${tableSyncing ? "fa-spin" : ""}`} aria-hidden />
                               </button>
                               <button
                                 type="button"
@@ -553,10 +584,24 @@ export default function Home() {
                                     ? `${tableFilters.length} filter(s)`
                                     : "Add filters"
                                 }
+                                aria-label="Filter"
                               >
-                                {hasFilters
-                                  ? `Filter (${tableFilters.length})`
-                                  : "Filter"}
+                                <i className="fas fa-filter" aria-hidden />
+                                {hasFilters ? (
+                                  <span className="tree-table-filter-count">{tableFilters.length}</span>
+                                ) : null}
+                              </button>
+                              <button
+                                type="button"
+                                className="tree-table-delete-btn"
+                                onClick={() =>
+                                  handleDeleteTable(dbName, tableName)
+                                }
+                                disabled={syncing || tableDeleting}
+                                title="Delete table on synker (remote store only)"
+                                aria-label="Delete"
+                              >
+                                <i className={`fas fa-trash ${tableDeleting ? "fa-spin" : ""}`} aria-hidden />
                               </button>
                             </div>
                           </div>

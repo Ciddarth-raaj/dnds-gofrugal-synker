@@ -3,6 +3,7 @@
 const express = require("express");
 const { getEnvConfig } = require("./config/env");
 const { runSync } = require("./helpers/runSync");
+const { deleteTable } = require("./helpers/syncApi");
 const { listDatabases, listTables, listViews, getTableConfig, getTablePreview } = require("./helpers/sqlServer");
 const scheduler = require("./services/scheduler");
 const filtersService = require("./services/filters");
@@ -175,6 +176,24 @@ app.post("/api/sync", async (req, res) => {
   }
   scheduler.appendLog({ dbName, tableName, status: "error", message: result.error });
   res.status(400).json({ success: false, error: result.error });
+});
+
+// Delete table on synker only (calls DELETE /gofrugal-synker/table on GOFRUGAL_SYNKER_BASE_URL). Does not delete from this server.
+app.post("/api/delete-table", async (req, res) => {
+  const { dbName, tableName } = req.body || {};
+  const trimmedDb = (dbName || "").trim();
+  const trimmedTable = (tableName || "").trim();
+  if (!trimmedDb || !trimmedTable) {
+    return res.status(400).json({ error: "Database name and table name are required." });
+  }
+  const tableNameForApi = `${trimmedDb}_${trimmedTable}`;
+  try {
+    const data = await deleteTable(tableNameForApi);
+    return res.json({ success: true, message: data.msg || "Table deleted", table: data.table });
+  } catch (e) {
+    const msg = e.body?.msg || e.message;
+    return res.status(e.status || 500).json({ success: false, error: msg });
+  }
 });
 
 app.listen(PORT, () => {

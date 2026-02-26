@@ -257,8 +257,15 @@
 }
 
 .btn-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   background: var(--secondary);
   color: #fff;
+}
+
+.btn-sync .fas {
+  font-size: 0.85rem;
 }
 
 .btn-sync:hover:not(:disabled) {
@@ -463,6 +470,22 @@
   flex-shrink: 0;
 }
 
+.tree-table-actions .fas {
+  font-size: 0.7rem;
+}
+
+.tree-table-view-btn,
+.tree-table-sync-btn,
+.tree-table-filter-btn,
+.tree-table-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
 .tree-table-view-btn {
   flex-shrink: 0;
   padding: 0.25rem 0.5rem;
@@ -525,6 +548,34 @@
 }
 
 .tree-table-filter-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tree-table-filter-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.1rem;
+}
+
+.tree-table-delete-btn {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tree-table-delete-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tree-table-delete-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

@@ -45,4 +45,33 @@ async function syncTable(payload) {
   return data;
 }
 
-module.exports = { syncTable };
+/**
+ * Calls the Gofrugal Synker API to delete (drop) a table by name.
+ * Does not delete from this server — only calls the external synker DELETE API.
+ * @param {string} tableNameForApi - Table name as sent to synker (e.g. "dbName_tableName")
+ * @returns {Promise<{ code: number, msg: string, table?: string }>}
+ */
+async function deleteTable(tableNameForApi) {
+  const { synker } = getEnvConfig();
+  const url = `${synker.baseUrl}/gofrugal-synker/table`;
+
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table_name: tableNameForApi }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const msg = data.msg || data.message || res.statusText;
+    const err = new Error(`Synker API error (${res.status}): ${msg}`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data;
+}
+
+module.exports = { syncTable, deleteTable };
