@@ -63,3 +63,11 @@ npm run build --prefix frontend && pm2 restart gofrugaldbsynker-frontend
    pm2 start ecosystem.config.cjs
    ```
 5. If a file is “in use” and won’t delete, restart the PC (no Admin needed for restart on most setups), then run step 4 and `pm2 start ecosystem.config.cjs` again.
+
+## 7. Running via Windows Task Scheduler
+
+If the **frontend** shows **errored** in PM2 when started from Task Scheduler but works when you run `deploy.ps1 start` manually (backend is fine), the cause is often the **working directory** when the child process runs. The ecosystem file now passes an **absolute path** for the folder to serve (`frontend/dist`). Ensure the scheduled task:
+
+- **Start in:** set to the project root (the folder that contains `ecosystem.config.cjs`). If you use `deploy.ps1 start`, the program could be `powershell.exe` with arguments `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\repo\deploy.ps1" start`, and **Start in** set to `C:\path\to\repo`.
+- **User:** run with the same user account that runs PM2 successfully in an interactive session.
+- Optionally set **PATH** in the task’s environment to include the folder that contains `node.exe` and `pm2` (e.g. `%APPDATA%\npm` and the Node installation directory) if you still see issues.

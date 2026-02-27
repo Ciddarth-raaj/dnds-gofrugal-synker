@@ -191,7 +191,7 @@ function Cmd-Update {
   npm run build
   Pop-Location
   Write-Host "Restarting PM2 (stop then start for a clean frontend)..."
-  pm2 delete gofrugaldbsynker-backend gofrugaldbsynker-frontend 2>$null
+  pm2 delete all
   pm2 start ecosystem.config.cjs
   Write-Host "Update complete."
   pm2 list
@@ -209,7 +209,8 @@ function Cmd-Start {
     exit 1
   }
   Write-Host "Restarting PM2..."
-  pm2 delete gofrugaldbsynker-backend gofrugaldbsynker-frontend 2>$null
+  # Delete only if apps exist; suppress "not found" errors on first run or when already stopped
+  pm2 delete all
   pm2 start ecosystem.config.cjs
   Write-Host "Start complete."
   pm2 list
