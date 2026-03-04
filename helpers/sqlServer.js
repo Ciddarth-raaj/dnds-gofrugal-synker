@@ -306,13 +306,30 @@ function isDateLikeValue(val) {
   return /^\d{4}-\d{2}-\d{2}(T|\s|$)/.test(String(val).trim());
 }
 
+/** Resolve @TODAY / @YESTERDAY to YYYY-MM-DD at sync time (server local date). */
+function resolveDateValue(val) {
+  if (val == null || val === "") return val;
+  const s = String(val).trim();
+  if (s === "@TODAY" || s === "TODAY") {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+  if (s === "@YESTERDAY" || s === "YESTERDAY") {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  return val;
+}
+
 /** Bind a filter value with correct type for SQL Server (date vs string). */
 function bindFilterValue(request, paramName, value) {
-  if (isDateLikeValue(value)) {
-    const d = new Date(String(value).trim().replace(" ", "T"));
-    return request.input(paramName, sql.Date, isNaN(d.getTime()) ? value : d);
+  const resolved = resolveDateValue(value);
+  if (isDateLikeValue(resolved)) {
+    const d = new Date(String(resolved).trim().replace(" ", "T"));
+    return request.input(paramName, sql.Date, isNaN(d.getTime()) ? resolved : d);
   }
-  return request.input(paramName, value);
+  return request.input(paramName, resolved);
 }
 
 /**
@@ -339,29 +356,32 @@ async function getTableData(dbName, tableName, filters = []) {
     const col = safeColumnName(f.column, allowedColumns);
     if (!col) continue;
     const op = (f.operator || "eq").toLowerCase();
-    if (op === "eq" && f.value != null && f.value !== "") {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+    const val = op === "range" && Array.isArray(f.value)
+      ? [resolveDateValue(f.value[0]), resolveDateValue(f.value[1])]
+      : resolveDateValue(f.value);
+    if (op === "eq" && val != null && val !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, val);
       conditions.push(`${col} = @p${paramIndex}`);
       paramIndex++;
-    } else if (op === "gt" && f.value != null && f.value !== "") {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+    } else if (op === "gt" && val != null && val !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, val);
       conditions.push(`${col} > @p${paramIndex}`);
       paramIndex++;
-    } else if (op === "gte" && f.value != null && f.value !== "") {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+    } else if (op === "gte" && val != null && val !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, val);
       conditions.push(`${col} >= @p${paramIndex}`);
       paramIndex++;
-    } else if (op === "lt" && f.value != null && f.value !== "") {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+    } else if (op === "lt" && val != null && val !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, val);
       conditions.push(`${col} < @p${paramIndex}`);
       paramIndex++;
-    } else if (op === "lte" && f.value != null && f.value !== "") {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value);
+    } else if (op === "lte" && val != null && val !== "") {
+      request = bindFilterValue(request, `p${paramIndex}`, val);
       conditions.push(`${col} <= @p${paramIndex}`);
       paramIndex++;
-    } else if (op === "range" && Array.isArray(f.value) && f.value.length >= 2 && f.value[0] != null && f.value[1] != null) {
-      request = bindFilterValue(request, `p${paramIndex}`, f.value[0]);
-      request = bindFilterValue(request, `p${paramIndex + 1}`, f.value[1]);
+    } else if (op === "range" && Array.isArray(val) && val.length >= 2 && val[0] != null && val[1] != null) {
+      request = bindFilterValue(request, `p${paramIndex}`, val[0]);
+      request = bindFilterValue(request, `p${paramIndex + 1}`, val[1]);
       conditions.push(`${col} >= @p${paramIndex} AND ${col} <= @p${paramIndex + 1}`);
       paramIndex += 2;
     }
@@ -372,21 +392,29 @@ async function getTableData(dbName, tableName, filters = []) {
 }
 
 /**
- * Fetch first N rows from a table (no filters). For preview/UI.
+ * Fetch last N rows from a table (no filters). For preview/UI.
+ * Uses first unique key or first column for ordering so "last" is defined.
  * @param {string} dbName
  * @param {string} tableName
- * @param {number} [limit=50]
+ * @param {number} [limit=100]
  * @returns {Promise<Object[]>}
  */
-async function getTablePreview(dbName, tableName, limit = 50) {
+async function getTablePreview(dbName, tableName, limit = 100) {
+  const top = Math.min(Math.max(1, parseInt(limit, 10) || 100), 500);
   if (isDev()) {
     const rows = await devData.getTableData(dbName, tableName, []);
-    return rows.slice(0, limit);
+    return rows.slice(-top);
   }
   const p = await getPool(dbName);
   const escaped = `[${tableName.replace(/\]/g, "]]")}]`;
-  const top = Math.min(Math.max(1, parseInt(limit, 10) || 50), 500);
-  const r = await p.request().query(`SELECT TOP ${top} * FROM ${escaped}`);
+  const config = await getTableConfig(dbName, tableName);
+  const orderCol = (config.unique_keys && config.unique_keys[0]) ||
+    (config.table_config && config.table_config[0] && config.table_config[0].name);
+  const orderBy = orderCol
+    ? `${safeColumnName(orderCol, new Set(config.table_config.map((c) => c.name)))} DESC`
+    : "";
+  const orderClause = orderBy ? ` ORDER BY ${orderBy}` : "";
+  const r = await p.request().query(`SELECT TOP ${top} * FROM ${escaped}${orderClause}`);
   return r.recordset.map(normalizeRow);
 }
 

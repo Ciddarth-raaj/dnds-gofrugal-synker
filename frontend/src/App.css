@@ -552,10 +552,15 @@
   cursor: not-allowed;
 }
 
-.tree-table-filter-count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-left: 0.1rem;
+.tree-table-filter-btn--filled {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tree-table-filter-btn--filled:hover:not(:disabled) {
+  background: var(--primary-90);
+  filter: brightness(0.95);
 }
 
 .tree-table-delete-btn {
@@ -954,6 +959,39 @@
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-20);
+}
+
+.filter-date-quick {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.filter-date-quick-btn {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-10);
+  border: 1px solid var(--primary-20);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.filter-date-quick-btn:hover {
+  background: var(--primary-20);
+}
+
+.filter-date-quick-btn--selected {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.filter-date-quick-btn--selected:hover {
+  background: var(--primary-90);
+  color: #fff;
+  filter: brightness(0.95);
 }
 
 .filter-add-btn-wrap {

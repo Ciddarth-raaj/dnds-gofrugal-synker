@@ -13,7 +13,7 @@ export default function TablePreviewModal({ dbName, tableName, onClose }) {
     async function load() {
       try {
         const { res, data } = await apiFetch(
-          `/api/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/preview?limit=50`
+          `/api/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/preview?limit=100`
         );
         if (cancelled) return;
         if (!res.ok) {
@@ -49,7 +49,7 @@ export default function TablePreviewModal({ dbName, tableName, onClose }) {
           </button>
         </div>
         <div className="dialog-body table-preview-body">
-          {loading && <p className="table-preview-loading">Loading first 50 rows…</p>}
+          {loading && <p className="table-preview-loading">Loading last 100 rows…</p>}
           {error && <p className="table-preview-error">{error}</p>}
           {!loading && !error && rows.length === 0 && (
             <p className="table-preview-empty">No rows in this table.</p>
@@ -89,7 +89,7 @@ export default function TablePreviewModal({ dbName, tableName, onClose }) {
         </div>
         <div className="dialog-footer">
           <span className="table-preview-meta">
-            Showing up to 50 rows · {columns.length} column{columns.length !== 1 ? "s" : ""}
+            Showing last {rows.length} row{rows.length !== 1 ? "s" : ""} · {columns.length} column{columns.length !== 1 ? "s" : ""}
           </span>
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Close

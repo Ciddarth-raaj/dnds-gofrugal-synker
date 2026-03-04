@@ -60,11 +60,11 @@ app.get("/api/databases/:dbName/tables/:tableName/columns", async (req, res) => 
   }
 });
 
-// Preview: first 50 rows of a table (for View modal)
+// Preview: last N rows of a table (for View modal)
 app.get("/api/databases/:dbName/tables/:tableName/preview", async (req, res) => {
   try {
     const { dbName, tableName } = req.params;
-    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
     const rows = await getTablePreview(dbName, tableName, limit);
     res.json({ rows });
   } catch (e) {

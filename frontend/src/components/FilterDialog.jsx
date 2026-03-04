@@ -10,10 +10,20 @@ const OPERATORS = [
   { value: "range", label: "Range (between)" },
 ];
 
+/** Stored in filter value; resolved to actual date at sync time on the server. */
+export const DATE_TODAY = "@TODAY";
+export const DATE_YESTERDAY = "@YESTERDAY";
+
 function isDateLikeType(type) {
   if (!type) return false;
   const t = String(type).toUpperCase();
   return t.includes("DATE") || t.includes("TIME");
+}
+
+function formatFilterValueDisplay(val) {
+  if (val === DATE_TODAY) return "Today";
+  if (val === DATE_YESTERDAY) return "Yesterday";
+  return String(val);
 }
 
 export default function FilterDialog({ dbName, tableName, initialFilters = [], onClose, onSave }) {
@@ -42,8 +52,6 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
 
   function addFilter() {
     if (!newColumn) return;
-    const col = columns.find((c) => c.name === newColumn);
-    const isDate = col && isDateLikeType(col.type);
     const value =
       newOperator === "range"
         ? [newValue.trim() || null, newValueEnd.trim() || null].filter((v) => v != null && v !== "")
@@ -109,7 +117,9 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
                         <span className="filter-item-col">{f.column}</span>
                         <span className="filter-item-op">{OPERATORS.find((o) => o.value === f.operator)?.label || f.operator}</span>
                         <span className="filter-item-val">
-                          {Array.isArray(f.value) ? `${f.value[0]} … ${f.value[1]}` : String(f.value)}
+                          {Array.isArray(f.value)
+                            ? `${formatFilterValueDisplay(f.value[0])} … ${formatFilterValueDisplay(f.value[1])}`
+                            : formatFilterValueDisplay(f.value)}
                         </span>
                         <button type="button" className="filter-remove" onClick={() => removeFilter(i)} aria-label="Remove filter">
                           Remove
@@ -157,24 +167,64 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
                   </label>
                   {newOperator === "range" ? (
                     <>
-                      <label className="filter-field">
+                      <label className="filter-field filter-field-range-from">
                         <span className="filter-field-label">From</span>
+                        {isDateInput && (
+                          <div className="filter-date-quick">
+                            <button
+                              type="button"
+                              className={`filter-date-quick-btn${newValue === DATE_TODAY ? " filter-date-quick-btn--selected" : ""}`}
+                              onClick={() => setNewValue((prev) => (prev === DATE_TODAY ? "" : DATE_TODAY))}
+                              aria-pressed={newValue === DATE_TODAY}
+                            >
+                              Today
+                            </button>
+                            <button
+                              type="button"
+                              className={`filter-date-quick-btn${newValue === DATE_YESTERDAY ? " filter-date-quick-btn--selected" : ""}`}
+                              onClick={() => setNewValue((prev) => (prev === DATE_YESTERDAY ? "" : DATE_YESTERDAY))}
+                              aria-pressed={newValue === DATE_YESTERDAY}
+                            >
+                              Yesterday
+                            </button>
+                          </div>
+                        )}
                         <input
                           type={isDateInput ? "date" : "text"}
                           className="filter-input"
-                          placeholder="From"
-                          value={newValue}
+                          placeholder="Or pick date"
+                          value={newValue === DATE_TODAY || newValue === DATE_YESTERDAY ? "" : newValue}
                           onChange={(e) => setNewValue(e.target.value)}
                           aria-label="From"
                         />
                       </label>
-                      <label className="filter-field">
+                      <label className="filter-field filter-field-range-to">
                         <span className="filter-field-label">To</span>
+                        {isDateInput && (
+                          <div className="filter-date-quick">
+                            <button
+                              type="button"
+                              className={`filter-date-quick-btn${newValueEnd === DATE_TODAY ? " filter-date-quick-btn--selected" : ""}`}
+                              onClick={() => setNewValueEnd((prev) => (prev === DATE_TODAY ? "" : DATE_TODAY))}
+                              aria-pressed={newValueEnd === DATE_TODAY}
+                            >
+                              Today
+                            </button>
+                            <button
+                              type="button"
+                              className={`filter-date-quick-btn${newValueEnd === DATE_YESTERDAY ? " filter-date-quick-btn--selected" : ""}`}
+                              onClick={() => setNewValueEnd((prev) => (prev === DATE_YESTERDAY ? "" : DATE_YESTERDAY))}
+                              aria-pressed={newValueEnd === DATE_YESTERDAY}
+                            >
+                              Yesterday
+                            </button>
+                          </div>
+                        )}
                         <input
                           type={isDateInput ? "date" : "text"}
                           className="filter-input"
-                          placeholder="To"
-                          value={newValueEnd}
+                          placeholder="Or pick date"
+                          value={newValueEnd === DATE_TODAY || newValueEnd === DATE_YESTERDAY ? "" : newValueEnd}
                           onChange={(e) => setNewValueEnd(e.target.value)}
                           aria-label="To"
                         />
@@ -183,11 +233,31 @@ export default function FilterDialog({ dbName, tableName, initialFilters = [], o
                   ) : (
                     <label className="filter-field filter-field-value">
                       <span className="filter-field-label">Value</span>
+                      {isDateInput && (
+                        <div className="filter-date-quick">
+                          <button
+                            type="button"
+                            className={`filter-date-quick-btn${newValue === DATE_TODAY ? " filter-date-quick-btn--selected" : ""}`}
+                            onClick={() => setNewValue((prev) => (prev === DATE_TODAY ? "" : DATE_TODAY))}
+                            aria-pressed={newValue === DATE_TODAY}
+                          >
+                            Today
+                          </button>
+                          <button
+                            type="button"
+                            className={`filter-date-quick-btn${newValue === DATE_YESTERDAY ? " filter-date-quick-btn--selected" : ""}`}
+                            onClick={() => setNewValue((prev) => (prev === DATE_YESTERDAY ? "" : DATE_YESTERDAY))}
+                            aria-pressed={newValue === DATE_YESTERDAY}
+                          >
+                            Yesterday
+                          </button>
+                        </div>
+                      )}
                       <input
                         type={isDateInput ? "date" : "text"}
                         className="filter-input"
-                        placeholder="Value"
-                        value={newValue}
+                        placeholder={isDateInput ? "Or pick date" : "Value"}
+                        value={newValue === DATE_TODAY || newValue === DATE_YESTERDAY ? "" : newValue}
                         onChange={(e) => setNewValue(e.target.value)}
                         aria-label="Value"
                       />

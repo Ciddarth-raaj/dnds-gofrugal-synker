@@ -76,13 +76,31 @@ function toDateOnly(val) {
   return m ? m[0] : null;
 }
 
+/** Resolve @TODAY / @YESTERDAY to YYYY-MM-DD at sync time (same as sqlServer). */
+function resolveDateValue(val) {
+  if (val == null || val === "") return val;
+  const s = String(val).trim();
+  if (s === "@TODAY" || s === "TODAY") {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+  if (s === "@YESTERDAY" || s === "YESTERDAY") {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  return val;
+}
+
 function rowMatchesFilters(row, filters) {
   if (!filters || filters.length === 0) return true;
   for (const f of filters) {
     const val = row[f.column];
     const op = (f.operator || "eq").toLowerCase();
+    const v = op === "range" && Array.isArray(f.value)
+      ? [resolveDateValue(f.value[0]), resolveDateValue(f.value[1])]
+      : resolveDateValue(f.value);
     if (op === "eq") {
-      const v = f.value;
       if (v == null || v === "") continue;
       const dateVal = toDateOnly(val);
       const dateV = toDateOnly(v);
@@ -94,7 +112,6 @@ function rowMatchesFilters(row, filters) {
       return false;
     }
     if (op === "gt" || op === "gte" || op === "lt" || op === "lte") {
-      const v = f.value;
       if (v == null || v === "") continue;
       const dateVal = toDateOnly(val);
       const dateV = toDateOnly(v);
@@ -124,8 +141,8 @@ function rowMatchesFilters(row, filters) {
       }
       continue;
     }
-    if (op === "range" && Array.isArray(f.value) && f.value.length >= 2) {
-      const [lo, hi] = f.value;
+    if (op === "range" && Array.isArray(v) && v.length >= 2) {
+      const [lo, hi] = v;
       if (lo == null || hi == null) continue;
       const dateVal = toDateOnly(val);
       const dateLo = toDateOnly(lo);

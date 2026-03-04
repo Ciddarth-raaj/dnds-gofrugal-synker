@@ -574,22 +574,15 @@ export default function Home() {
                               </button>
                               <button
                                 type="button"
-                                className="tree-table-filter-btn"
+                                className={`tree-table-filter-btn${hasFilters ? " tree-table-filter-btn--filled" : ""}`}
                                 onClick={() =>
                                   setFilterDialog({ dbName, tableName })
                                 }
                                 disabled={syncing}
-                                title={
-                                  hasFilters
-                                    ? `${tableFilters.length} filter(s)`
-                                    : "Add filters"
-                                }
+                                title={hasFilters ? "Filters applied" : "Add filters"}
                                 aria-label="Filter"
                               >
                                 <i className="fas fa-filter" aria-hidden />
-                                {hasFilters ? (
-                                  <span className="tree-table-filter-count">{tableFilters.length}</span>
-                                ) : null}
                               </button>
                               <button
                                 type="button"
