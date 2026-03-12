@@ -6,6 +6,7 @@ import { formatDateTime } from "../lib/date";
 import { getSchedule, saveSchedule } from "../lib/logs";
 import FilterDialog from "../components/FilterDialog";
 import TablePreviewModal from "../components/TablePreviewModal";
+import PrimaryKeyModal from "../components/PrimaryKeyModal";
 
 function tableKey(dbName, tableName) {
   return `${dbName}\0${tableName}`;
@@ -58,6 +59,8 @@ export default function Home() {
   const [schedulePaused, setSchedulePaused] = useState(false);
   const [tableSearch, setTableSearch] = useState("");
   const [previewModal, setPreviewModal] = useState(null);
+  const [allPrimaryKeys, setAllPrimaryKeys] = useState({});
+  const [primaryKeyModal, setPrimaryKeyModal] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +111,10 @@ export default function Home() {
         const filtersRes = await apiFetch("/api/filters");
         if (!cancelled && filtersRes.res.ok && filtersRes.data.filters) {
           setAllFilters(filtersRes.data.filters);
+        }
+        const pkRes = await apiFetch("/api/primary-keys");
+        if (!cancelled && pkRes.res.ok && pkRes.data.primaryKeys) {
+          setAllPrimaryKeys(pkRes.data.primaryKeys);
         }
       } catch (e) {
         if (!cancelled) toast.error(e.message || "Failed to load");
@@ -171,6 +178,30 @@ export default function Home() {
       }
     } catch (e) {
       toast.error(e.message || "Failed to save filters");
+    }
+  }
+
+  async function handleSavePrimaryKeys(dbName, tableName, primaryKeys) {
+    try {
+      const { res, data } = await apiFetch(
+        `/api/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/primary-key`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ primaryKeys }),
+        }
+      );
+      if (res.ok) {
+        const key = filterStorageKey(dbName, tableName);
+        setAllPrimaryKeys((prev) => ({ ...prev, [key]: data.primaryKeys || primaryKeys }));
+        toast.success(
+          primaryKeys.length > 0
+            ? `Primary key set (${primaryKeys.join(", ")})`
+            : "Primary key cleared; using schema default"
+        );
+      }
+    } catch (e) {
+      toast.error(e.message || "Failed to save primary key");
     }
   }
 
@@ -521,6 +552,8 @@ export default function Home() {
                       const filterKeyStr = filterStorageKey(dbName, tableName);
                       const tableFilters = allFilters[filterKeyStr] || [];
                       const hasFilters = tableFilters.length > 0;
+                      const tablePrimaryKeys = allPrimaryKeys[filterKeyStr] || [];
+                      const hasPrimaryKeyOverride = tablePrimaryKeys.length > 0;
                       const tableSyncing = syncingTableKey === key;
                       const tableDeleting = deletingTableKey === key;
                       return (
@@ -571,6 +604,18 @@ export default function Home() {
                                 aria-label={tableSyncing ? "Syncing…" : "Sync"}
                               >
                                 <i className={`fas fa-arrows-rotate ${tableSyncing ? "fa-spin" : ""}`} aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                className={`tree-table-primary-key-btn${hasPrimaryKeyOverride ? " tree-table-primary-key-btn--filled" : ""}`}
+                                onClick={() =>
+                                  setPrimaryKeyModal({ dbName, tableName })
+                                }
+                                disabled={syncing}
+                                title={hasPrimaryKeyOverride ? `Primary key: ${tablePrimaryKeys.join(", ")}` : "Set primary key"}
+                                aria-label="Primary key"
+                              >
+                                <i className="fas fa-key" aria-hidden />
                               </button>
                               <button
                                 type="button"
@@ -631,6 +676,17 @@ export default function Home() {
             dbName={previewModal.dbName}
             tableName={previewModal.tableName}
             onClose={() => setPreviewModal(null)}
+          />
+        )}
+        {primaryKeyModal && (
+          <PrimaryKeyModal
+            dbName={primaryKeyModal.dbName}
+            tableName={primaryKeyModal.tableName}
+            initialPrimaryKeys={allPrimaryKeys[filterStorageKey(primaryKeyModal.dbName, primaryKeyModal.tableName)] || []}
+            onClose={() => setPrimaryKeyModal(null)}
+            onSave={(primaryKeys) =>
+              handleSavePrimaryKeys(primaryKeyModal.dbName, primaryKeyModal.tableName, primaryKeys)
+            }
           />
         )}
         {databases.length === 0 && (

@@ -7,6 +7,7 @@ const { deleteTable } = require("./helpers/syncApi");
 const { listDatabases, listTables, listViews, getTableConfig, getTablePreview } = require("./helpers/sqlServer");
 const scheduler = require("./services/scheduler");
 const filtersService = require("./services/filters");
+const primaryKeysService = require("./services/primaryKeys");
 
 const app = express();
 app.use(express.json());
@@ -91,6 +92,38 @@ app.post("/api/filters", (req, res) => {
     }
     const updated = filtersService.setFilters(dbName, tableName, Array.isArray(filters) ? filters : []);
     res.json({ success: true, filters: updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get all primary key overrides (keyed by dbName_tableName)
+app.get("/api/primary-keys", (req, res) => {
+  try {
+    res.json({ primaryKeys: primaryKeysService.loadAll() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get primary key override for a table. Returns [] if not set (schema default used).
+app.get("/api/databases/:dbName/tables/:tableName/primary-key", (req, res) => {
+  try {
+    const { dbName, tableName } = req.params;
+    const primaryKeys = primaryKeysService.getPrimaryKeys(dbName, tableName);
+    res.json({ primaryKeys });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Set primary key for a table. Body: { primaryKeys: string[] }. Pass [] to clear override.
+app.post("/api/databases/:dbName/tables/:tableName/primary-key", (req, res) => {
+  try {
+    const { dbName, tableName } = req.params;
+    const { primaryKeys } = req.body || {};
+    const updated = primaryKeysService.setPrimaryKeys(dbName, tableName, Array.isArray(primaryKeys) ? primaryKeys : []);
+    res.json({ success: true, primaryKeys: updated });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -477,6 +477,7 @@
 .tree-table-view-btn,
 .tree-table-sync-btn,
 .tree-table-filter-btn,
+.tree-table-primary-key-btn,
 .tree-table-delete-btn {
   display: inline-flex;
   align-items: center;
@@ -559,6 +560,39 @@
 }
 
 .tree-table-filter-btn--filled:hover:not(:disabled) {
+  background: var(--primary-90);
+  filter: brightness(0.95);
+}
+
+.tree-table-primary-key-btn {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tree-table-primary-key-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.tree-table-primary-key-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tree-table-primary-key-btn--filled {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tree-table-primary-key-btn--filled:hover:not(:disabled) {
   background: var(--primary-90);
   filter: brightness(0.95);
 }
@@ -818,6 +852,88 @@
 /* Filter dialog */
 .filter-dialog.dialog {
   max-width: 580px;
+}
+
+.primary-key-dialog.dialog {
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.primary-key-dialog .dialog-body {
+  flex: 1;
+  min-height: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-bottom: 1.5rem;
+}
+
+.primary-key-dialog .dialog-desc {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.primary-key-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.primary-key-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.primary-key-item:hover {
+  background: var(--primary-10);
+  border-color: var(--primary-20);
+}
+
+.primary-key-item:has(input:checked) {
+  background: var(--primary-10);
+  border-color: var(--primary-20);
+  box-shadow: 0 0 0 1px var(--primary-20);
+}
+
+.primary-key-item:has(input:checked):hover {
+  background: var(--primary-20);
+}
+
+.primary-key-item input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.primary-key-col-name {
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+}
+
+.primary-key-item:has(input:checked) .primary-key-col-name {
+  color: var(--primary);
+}
+
+.primary-key-col-type {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.primary-key-item:has(input:checked) .primary-key-col-type {
+  color: var(--primary);
+  opacity: 0.85;
 }
 
 .dialog-body {

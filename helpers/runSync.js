@@ -3,6 +3,7 @@
 const { getEnvConfig } = require("../config/env");
 const { syncTable } = require("./syncApi");
 const filtersService = require("../services/filters");
+const primaryKeysService = require("../services/primaryKeys");
 const {
   databaseExists,
   tableExists,
@@ -50,8 +51,15 @@ async function runSync(dbName, tableName) {
     const tableFilters = filtersService.getFilters(trimmedDb, trimmedTable);
     const tableItems = await getTableData(trimmedDb, trimmedTable, tableFilters);
 
-    // MySQL: only one auto column and it must be the primary key. So allow autoIncrement only on the first unique_key.
-    const firstUniqueKey = tableConfig.unique_keys && tableConfig.unique_keys[0];
+    // Use user-set primary key if any; otherwise use schema default (tableConfig.unique_keys).
+    const overrideKeys = primaryKeysService.getPrimaryKeys(trimmedDb, trimmedTable);
+    const validOverride =
+      Array.isArray(overrideKeys) &&
+      overrideKeys.length > 0 &&
+      overrideKeys.every((k) => (tableConfig.table_config || []).some((c) => c.name === k));
+    const unique_keys = validOverride ? overrideKeys : (tableConfig.unique_keys || []);
+
+    const firstUniqueKey = unique_keys[0];
     const table_config = (tableConfig.table_config || []).map((col) => ({
       ...col,
       autoIncrement: firstUniqueKey && col.name === firstUniqueKey ? Boolean(col.autoIncrement) : false,
@@ -63,7 +71,7 @@ async function runSync(dbName, tableName) {
     const payload = {
       table_name: tableNameForApi,
       table_config,
-      unique_keys: tableConfig.unique_keys,
+      unique_keys,
       table_items: [],
     };
 
